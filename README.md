@@ -26,8 +26,9 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 # Add a new TODO
-todo add <text>
+todo add <text> [--due <date>]
 todo add "Do something useful with my life!"
+todo add "Fly to the moon" --due 2099-12-31 23:59:59
 
 # List TODOs
 todo list        # list overdue TODOs
