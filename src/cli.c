@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "todo.h"
+#include "version.h"
 
 static void how_to_use(void);
 static void how_to_use_add(void);
@@ -20,7 +21,9 @@ int main(int argc, char** argv)
         return TODO_ERROR_ARGUMENT;
     }
 
-    if (strcmp(argv[1], "add") == 0) {
+    if (strcmp(argv[1], "--version") == 0) {
+        printf("v" TODO_VERSION);
+    } else if (strcmp(argv[1], "add") == 0) {
         if (argc < 3) {
             how_to_use_add();
             return TODO_ERROR_ARGUMENT;
