@@ -1,0 +1,98 @@
+%YAML 1.2
+#
+# clang-format configuration file. Intended for clang-format >= 16
+# For more information, see:
+#   Documentation/process/clang-format.rst
+#   https://clang.llvm.org/docs/ClangFormat.html
+#   https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+#
+
+---
+# Common settings
+BasedOnStyle: LLVM
+IndentWidth: 4
+
+---
+# Language specific settings: C++
+Language: Cpp
+
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: true
+    AlignCompound: true
+    PadOperators: true
+AlignConsecutiveBitFields:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: true
+AlignConsecutiveDeclarations:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: true
+AlignConsecutiveMacros:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: true
+AlignOperands: AlignAfterOperator
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterReturnType: None
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: Linux
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+BreakStringLiterals: false
+CompactNamespaces: false
+ColumnLimit: 0
+DerivePointerAlignment: false
+EmptyLineAfterAccessModifier: Always
+EmptyLineBeforeAccessModifier: Always
+FixNamespaceComments: true
+IndentCaseBlocks: true
+IndentCaseLabels: true
+IndentExternBlock: NoIndent
+IndentGotoLabels: false
+IndentPPDirectives: None
+InsertBraces: true
+NamespaceIndentation: None
+PointerAlignment: Left
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^<'
+    Priority:        1
+  - Regex:           '^"'
+    Priority:        2
+SortUsingDeclarations: true
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: false
+SpaceAroundPointerQualifiers: Default
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: Never
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInLineCommentPrefix:
+    Minimum: 1
+    Maximum: -1
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+...
