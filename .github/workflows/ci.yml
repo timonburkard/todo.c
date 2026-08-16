@@ -17,3 +17,6 @@ jobs:
 
       - name: Build project
         run: ./build.sh
+
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure

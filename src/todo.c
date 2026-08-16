@@ -1,5 +1,6 @@
 #include "todo.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,19 +16,236 @@
                                       "    due_at TEXT,"                                        \
                                       "    done_at TEXT"                                        \
                                       ");"
-#define DB_INSERT_INTO "INSERT INTO todos (text, due_at, done_at) VALUES ('%s', NULL, NULL);"
-#define DB_SELECT_ALL  "SELECT id, text, created_at, due_at, done_at FROM todos;"
+#define DB_INSERT_INTO          "INSERT INTO todos (text, due_at, done_at) VALUES ('%s', NULL, NULL);"
+#define DB_INSERT_INTO_WITH_DUE "INSERT INTO todos (text, due_at, done_at) VALUES ('%s', '%s', NULL);"
+#define DB_SELECT_ALL           "SELECT id, text, created_at, due_at, done_at FROM todos;"
+#define DB_SELECT_OVERDUE       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at < CURRENT_TIMESTAMP AND done_at IS NULL;"
+#define DB_UPDATE_DUE           "UPDATE todos SET due_at = '%s' WHERE id = %u;"
+#define DB_UPDATE_DONE          "UPDATE todos SET done_at = CURRENT_TIMESTAMP WHERE id = %u;"
+
+#define STR_LEN_MAX 256
 
 static sqlite3* db;
 
-// +----------------------------------+
-// | #1                               |
-// | do something useful with my life |
-// |                                  |
-// | created = 2026-08-16 12:53:13    |
-// | due     =                        |
-// | done    =                        |
-// +----------------------------------+
+static bool is_date_str(char* str);
+static int  callback(void* NotUsed, int argc, char** argv, char** azColName);
+
+todo_error_t todo_add(int argc, char** argv)
+{
+    int   res              = 0;
+    char* zErrMsg          = 0;
+    char* due_date         = "";
+    char* text             = "";
+    char  str[STR_LEN_MAX] = "";
+
+    if (argc < 1) {
+        fprintf(stderr, "Not enough arguments");
+        return TODO_ERROR_ARGUMENT;
+    }
+
+    text = argv[0];
+
+    if (argc > 1) {
+        if (strcmp(argv[1], "--due") == 0) {
+            if (argc > 2) {
+                if (is_date_str(argv[2])) {
+                    due_date = argv[2];
+                } else {
+                    fprintf(stderr, "Invalid argument format: %s\n", argv[2]);
+                    return TODO_ERROR_ARGUMENT;
+                }
+            } else {
+                fprintf(stderr, "Invalid number of arguments");
+                return TODO_ERROR_ARGUMENT;
+            }
+        } else {
+            fprintf(stderr, "Unknown argument: %s\n", argv[1]);
+            return TODO_ERROR_ARGUMENT;
+        }
+    }
+
+    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    if (sqlite3_exec(db, DB_CREATE_TABLE_IF_NOT_EXISTS, callback, 0, &zErrMsg) != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    if (due_date[0] == '\0') {
+        res = snprintf(str, STR_LEN_MAX, DB_INSERT_INTO, text);
+    } else {
+        res = snprintf(str, STR_LEN_MAX, DB_INSERT_INTO_WITH_DUE, text, due_date);
+    }
+
+    if ((res < 0) || (res >= STR_LEN_MAX)) {
+        fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+        sqlite3_free(zErrMsg);
+        sqlite3_close(db);
+        return TODO_ERROR_ARGUMENT;
+    }
+
+    if (sqlite3_exec(db, str, callback, 0, &zErrMsg) != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    sqlite3_free(zErrMsg);
+    sqlite3_close(db);
+
+    return TODO_ERROR_OK;
+}
+
+todo_error_t todo_list(int argc, char** argv)
+{
+    bool  all              = false;
+    char* zErrMsg          = 0;
+    char  str[STR_LEN_MAX] = "";
+
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "--all") == 0) {
+            all = true;
+        } else {
+            fprintf(stderr, "Unknown argument: %s\n", argv[i]);
+            return TODO_ERROR_ARGUMENT;
+        }
+    }
+
+    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    if (all) {
+        if (sqlite3_exec(db, DB_SELECT_ALL, callback, 0, &zErrMsg) != SQLITE_OK) {
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+            sqlite3_close(db);
+            return TODO_ERROR_DB;
+        }
+    } else {
+        if (sqlite3_exec(db, DB_SELECT_OVERDUE, callback, 0, &zErrMsg) != SQLITE_OK) {
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+            sqlite3_close(db);
+            return TODO_ERROR_DB;
+        }
+    }
+
+    sqlite3_free(zErrMsg);
+    sqlite3_close(db);
+
+    return TODO_ERROR_OK;
+}
+
+todo_error_t todo_due(uint32_t id, char* due_date)
+{
+    int   res              = 0;
+    char* zErrMsg          = 0;
+    char  str[STR_LEN_MAX] = "";
+
+    if (!is_date_str(due_date)) {
+        fprintf(stderr, "Invalid argument format: %s\n", due_date);
+        return TODO_ERROR_ARGUMENT;
+    }
+
+    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    res = snprintf(str, STR_LEN_MAX, DB_UPDATE_DUE, due_date, id);
+
+    if ((res < 0) || (res >= STR_LEN_MAX)) {
+        fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+        sqlite3_close(db);
+        return TODO_ERROR_ARGUMENT;
+    }
+
+    if (sqlite3_exec(db, str, callback, 0, &zErrMsg) != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    sqlite3_free(zErrMsg);
+    sqlite3_close(db);
+
+    return TODO_ERROR_OK;
+}
+
+todo_error_t todo_done(uint32_t id)
+{
+    int   res              = 0;
+    char* zErrMsg          = 0;
+    char  str[STR_LEN_MAX] = "";
+
+    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    res = snprintf(str, STR_LEN_MAX, DB_UPDATE_DONE, id);
+
+    if ((res < 0) || (res >= STR_LEN_MAX)) {
+        fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+        sqlite3_close(db);
+        return TODO_ERROR_ARGUMENT;
+    }
+
+    if (sqlite3_exec(db, str, callback, 0, &zErrMsg) != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+        sqlite3_close(db);
+        return TODO_ERROR_DB;
+    }
+
+    sqlite3_free(zErrMsg);
+    sqlite3_close(db);
+
+    return TODO_ERROR_OK;
+}
+
+todo_error_t todo_review(void)
+{
+    // TODO: Select overdue todos from SQLite and print them one by one
+    // For each todo, the user can device what to do (mark done, move to tomorrow, next week, next month..)
+    printf("Interactive review not yet implemented\n");
+
+    return TODO_ERROR_OK;
+}
+
+/**
+ * @brief Callback from SQL query
+ *
+ * Prints each TODO, which matched the SQL query, in the following format:
+ *
+ * +----------------------------------+
+ * | #1                               |
+ * | do something useful with my life |
+ * |                                  |
+ * | created = 2026-08-16 12:53:13    |
+ * | due     =                        |
+ * | done    =                        |
+ * +----------------------------------+
+ *
+ * @param NotUsed
+ * @param argc
+ * @param argv
+ * @param azColName
+ * @return int
+ */
 static int callback(void* NotUsed, int argc, char** argv, char** azColName)
 {
     int MIN_WIDTH = 31;
@@ -57,55 +275,67 @@ static int callback(void* NotUsed, int argc, char** argv, char** azColName)
     return 0;
 }
 
-todo_error_t todo_add(char* text)
+#define WITHIN(lower, value, upper) (((lower) <= (value)) && ((value) <= (upper)))
+
+/**
+ * @brief Check if string is valid ISO datetime: "YYYY-MM-DD hh:mm:ss"
+ *
+ * @param str    -- String to be check
+ * @return true  -- Format is valid
+ * @return false -- Form is not valid
+ */
+static bool is_date_str(char* str)
 {
-    char* zErrMsg  = 0;
-    char  str[100] = "";
-
-    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
+    if (strlen(str) != 19) {
+        return false;
     }
 
-    if (sqlite3_exec(db, DB_CREATE_TABLE_IF_NOT_EXISTS, callback, 0, &zErrMsg) != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", zErrMsg);
-        sqlite3_free(zErrMsg);
+    /* clang-format off */
+
+    // YYYY-
+    if (!WITHIN('0', str[0], '9')) return false;
+    if (!WITHIN('0', str[1], '9')) return false;
+    if (!WITHIN('0', str[2], '9')) return false;
+    if (!WITHIN('0', str[3], '9')) return false;
+    if (str[4] != '-') return false;
+
+    // MM-
+    if (!WITHIN('0', str[5], '1')) return false;
+    if (str[5] == '1') {
+        if (!WITHIN('0', str[6], '2')) return false;
+    } else {
+        if (!WITHIN('0', str[6], '9')) return false;
     }
+    if (str[7] != '-') return false;
 
-    sprintf(str, DB_INSERT_INTO, text);
-    if (sqlite3_exec(db, str, callback, 0, &zErrMsg) != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", zErrMsg);
-        sqlite3_free(zErrMsg);
+    // DD
+    if (!WITHIN('0', str[8], '3')) return false;
+    if (str[8] == '3') {
+        if (!WITHIN('0', str[9], '1')) return false;
+    } else {
+        if (!WITHIN('0', str[9], '9')) return false;
     }
+    if (str[10] != ' ') return false;
 
-    sqlite3_close(db);
-
-    return TODO_ERROR_OK;
-}
-
-todo_error_t todo_list(void)
-{
-    char* zErrMsg = 0;
-
-    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
+    // hh:
+    if (!WITHIN( '0', str[11], '2')) return false;
+    if (str[11] == '2') {
+        if (!WITHIN( '0', str[12], '3')) return false;
+    } else {
+        if (!WITHIN( '0', str[12], '9')) return false;
     }
+    if (str[13] != ':') return false;
 
-    if (sqlite3_exec(db, DB_SELECT_ALL, callback, 0, &zErrMsg) != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", zErrMsg);
-        sqlite3_free(zErrMsg);
-    }
+    // mm:
+    if (!WITHIN( '0', str[14], '5')) return false;
+    if (!WITHIN( '0', str[15], '9')) return false;
+    if (str[16] != ':') return false;
 
-    sqlite3_close(db);
+    // ss
+    if (!WITHIN( '0', str[17], '5')) return false;
+    if (!WITHIN( '0', str[18], '9')) return false;
 
-    return TODO_ERROR_OK;
-}
+    /* clang-format on */
 
-todo_error_t todo_review(void)
-{
-    // TODO: Select overdue todos from SQLite and print them one by one
-    // For each todo, the user can device what to do (mark done, move to tomorrow, next week, next month..)
-
-    return TODO_ERROR_OK;
+    return true;
 }
