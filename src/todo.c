@@ -22,14 +22,22 @@
 #define DB_SELECT_ALL           "SELECT id, text, created_at, due_at, done_at FROM todos;"
 #define DB_SELECT_DEFAULT       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE done_at IS NULL;"
 #define DB_SELECT_OVERDUE       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at <= CURRENT_TIMESTAMP AND done_at IS NULL;"
+#define DB_SELECT_UNTIL         "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at <= '%s' AND done_at IS NULL;"
 #define DB_UPDATE_DUE           "UPDATE todos SET due_at = '%s' WHERE id = %u;"
 #define DB_UPDATE_DONE          "UPDATE todos SET done_at = CURRENT_TIMESTAMP WHERE id = %u;"
 
 #define STR_LEN_MAX 256
 
+#define UNREACHABLE() (fprintf(stderr, "UNREACHABLE code reached at %s:%s", __FILE__, __LINE__))
+
 static sqlite3* db;
 
-static bool convert_to_iso(char* str, char** iso_str_ptr);
+typedef enum {
+    ROUND_DOWN,
+    ROUND_UP,
+} round_t;
+
+static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding);
 static int  callback(void* NotUsed, int argc, char** argv, char** azColName);
 
 todo_error_t todo_add(int argc, char** argv)
@@ -50,7 +58,7 @@ todo_error_t todo_add(int argc, char** argv)
     if (argc > 1) {
         if (strcmp(argv[1], "--due") == 0) {
             if (argc > 2) {
-                if (!convert_to_iso(argv[2], &due_date)) {
+                if (!convert_to_iso(argv[2], &due_date, ROUND_DOWN)) {
                     fprintf(stderr, "Invalid argument format: %s\n", argv[2]);
                     return TODO_ERROR_ARGUMENT;
                 }
@@ -106,22 +114,34 @@ todo_error_t todo_add(int argc, char** argv)
 typedef enum {
     LIST_FLAG_DEFAULT,
     LIST_FLAG_OVERDUE,
+    LIST_FLAG_UNTIL,
     LIST_FLAG_ALL,
 } list_flag_t;
 
 todo_error_t todo_list(int argc, char** argv)
 {
-    list_flag_t flag             = LIST_FLAG_DEFAULT;
-    char*       zErrMsg          = 0;
-    char        str[STR_LEN_MAX] = "";
+    list_flag_t flag      = LIST_FLAG_DEFAULT;
+    char*       zErrMsg   = 0;
+    char*       until_str = "";
 
-    for (int i = 0; i < argc; i++) {
+    if (argc == 1) {
         if (strcmp(argv[0], "--overdue") == 0) {
             flag = LIST_FLAG_OVERDUE;
-        } else if (strcmp(argv[i], "--all") == 0) {
+        } else if (strcmp(argv[0], "--all") == 0) {
             flag = LIST_FLAG_ALL;
         } else {
-            fprintf(stderr, "Unknown argument: %s\n", argv[i]);
+            fprintf(stderr, "Unknown argument: %s\n", argv[0]);
+            return TODO_ERROR_ARGUMENT;
+        }
+    } else if (argc == 2) {
+        if (strcmp(argv[0], "--until") == 0) {
+            flag = LIST_FLAG_UNTIL;
+            if (!convert_to_iso(argv[1], &until_str, ROUND_UP)) {
+                fprintf(stderr, "Invalid argument format: %s\n", argv[1]);
+                return TODO_ERROR_ARGUMENT;
+            }
+        } else {
+            fprintf(stderr, "Unknown argument: %s %s\n", argv[0], argv[1]);
             return TODO_ERROR_ARGUMENT;
         }
     }
@@ -151,6 +171,25 @@ todo_error_t todo_list(int argc, char** argv)
             }
             break;
 
+        case LIST_FLAG_UNTIL:
+            char sql_str[STR_LEN_MAX] = "";
+
+            int res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_UNTIL, until_str);
+
+            if ((res < 0) || (res >= STR_LEN_MAX)) {
+                fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+                sqlite3_close(db);
+                return TODO_ERROR_ARGUMENT;
+            }
+
+            if (sqlite3_exec(db, sql_str, callback, 0, &zErrMsg) != SQLITE_OK) {
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+                sqlite3_close(db);
+                return TODO_ERROR_DB;
+            }
+            break;
+
         case LIST_FLAG_ALL:
             if (sqlite3_exec(db, DB_SELECT_ALL, callback, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
@@ -161,6 +200,7 @@ todo_error_t todo_list(int argc, char** argv)
             break;
 
         default:
+            UNREACHABLE();
             sqlite3_free(zErrMsg);
             sqlite3_close(db);
             return TODO_ERROR_GENERAL;
@@ -178,7 +218,7 @@ todo_error_t todo_due(uint32_t id, char* due_date)
     char* zErrMsg          = 0;
     char  str[STR_LEN_MAX] = "";
 
-    if (!convert_to_iso(due_date, &due_date)) {
+    if (!convert_to_iso(due_date, &due_date, ROUND_DOWN)) {
         fprintf(stderr, "Invalid argument format: %s\n", due_date);
         return TODO_ERROR_ARGUMENT;
     }
@@ -310,12 +350,23 @@ static int callback(void* NotUsed, int argc, char** argv, char** azColName)
 /**
  * @brief Convert a string to ISO datetime format if it is valid
  *
+ * @p str must have one of these ISO formats:
+ *  - ISO datetime: "YYYY-MM-DD hh:mm:ss"
+ *  - ISO date:     "YYYY-MM-DD"
+ * Or be one of these keywords:
+ *  - Today:        "today"
+ *  - Tomorrow:     "tomorrow"
+ *  - In a week:    "week"
+ *  - In a month:   "month"
+ *  - In a year:    "year"
+ *
  * @param str         -- input string
  * @param iso_str_ptr -- pointer to output string
+ * @param rounding    -- Round up or down for keywords
  * @return true       -- input string is valid
  * @return false      -- input string is valid
  */
-static bool convert_to_iso(char* str, char** iso_str_ptr)
+static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding)
 {
     static char static_iso_str[DATETIME_STR_SIZE] = "";
     time_t      t                                 = time(NULL);
@@ -341,7 +392,15 @@ static bool convert_to_iso(char* str, char** iso_str_ptr)
 
     if (keyword) {
         mktime(&time_local);
-        snprintf(static_iso_str, DATETIME_STR_SIZE, "%04d-%02d-%02d %02d:%02d:%02d", time_local.tm_year + 1900, time_local.tm_mon + 1, time_local.tm_mday, 0, 0, 0);
+        if (rounding == ROUND_DOWN) {
+            snprintf(static_iso_str, DATETIME_STR_SIZE, "%04d-%02d-%02d %02d:%02d:%02d", time_local.tm_year + 1900, time_local.tm_mon + 1, time_local.tm_mday, 0, 0, 0);
+        } else if (rounding == ROUND_UP) {
+            snprintf(static_iso_str, DATETIME_STR_SIZE, "%04d-%02d-%02d %02d:%02d:%02d", time_local.tm_year + 1900, time_local.tm_mon + 1, time_local.tm_mday, 23, 59, 59);
+        } else {
+            UNREACHABLE();
+            return false;
+        }
+
         *iso_str_ptr = static_iso_str;
         return true;
     }
@@ -378,18 +437,29 @@ static bool convert_to_iso(char* str, char** iso_str_ptr)
         if (!WITHIN('0', str[9], '9')) return false;
     }
 
+    /* clang-format on */
+
     for (int i = 0; i < DATE_STR_LEN; i++) {
         static_iso_str[i] = str[i];
     }
 
     if (strlen(str) == DATE_STR_LEN) {
-         // Was just a date --> put time to zero
-        snprintf(&static_iso_str[DATE_STR_LEN], DATETIME_STR_SIZE - DATE_STR_LEN, " %02d:%02d:%02d", 0, 0, 0);
+        // Was just a date
+        if (rounding == ROUND_DOWN) {
+            snprintf(&static_iso_str[DATE_STR_LEN], DATETIME_STR_SIZE - DATE_STR_LEN, " %02d:%02d:%02d", 0, 0, 0);
+        } else if (rounding == ROUND_UP) {
+            snprintf(&static_iso_str[DATE_STR_LEN], DATETIME_STR_SIZE - DATE_STR_LEN, " %02d:%02d:%02d", 23, 59, 59);
+        } else {
+            UNREACHABLE();
+        }
+
         *iso_str_ptr = static_iso_str;
         return true;
     }
 
     // It is a date time --> continue checking...
+
+    /* clang-format off */
 
     if (str[10] != ' ') return false;
     // hh:

@@ -35,7 +35,7 @@ todo add "Fly to the moon" --due "2099-12-31 23:59:59"
 todo list                 # list open TODOs
 todo list --overdue       # list overdue TODOs
 todo list --all           # list all TODOs
-todo list --until <date>  # list issue which are due until <date> (NOT YET IMPLEMENTED)
+todo list --until <date>  # list issue which are due until <date>
 
 # Add due date to a TODO
 todo due <id> <date>
