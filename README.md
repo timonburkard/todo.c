@@ -16,6 +16,12 @@ On Windows PowerShell:
 .\build.ps1
 ```
 
+### Tests
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
 ## Run
 
 ```bash
