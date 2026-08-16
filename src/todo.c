@@ -23,6 +23,7 @@
 #define DB_SELECT_DEFAULT       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE done_at IS NULL;"
 #define DB_SELECT_OVERDUE       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at <= CURRENT_TIMESTAMP AND done_at IS NULL;"
 #define DB_SELECT_UNTIL         "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at <= '%s' AND done_at IS NULL;"
+#define DB_SELECT_SEARCH        "SELECT id, text, created_at, due_at, done_at FROM todos WHERE text LIKE '%%%s%%'"
 #define DB_UPDATE_DUE           "UPDATE todos SET due_at = '%s' WHERE id = %u;"
 #define DB_UPDATE_DONE          "UPDATE todos SET done_at = CURRENT_TIMESTAMP WHERE id = %u;"
 
@@ -116,13 +117,17 @@ typedef enum {
     LIST_FLAG_OVERDUE,
     LIST_FLAG_UNTIL,
     LIST_FLAG_ALL,
+    LIST_FLAG_SEARCH,
 } list_flag_t;
 
 todo_error_t todo_list(int argc, char** argv)
 {
-    list_flag_t flag      = LIST_FLAG_DEFAULT;
-    char*       zErrMsg   = 0;
-    char*       until_str = "";
+    char        sql_str[STR_LEN_MAX] = "";
+    list_flag_t flag                 = LIST_FLAG_DEFAULT;
+    int         res                  = 0;
+    char*       zErrMsg              = 0;
+    char*       until_str            = "";
+    char*       search_str           = "";
 
     if (argc == 1) {
         if (strcmp(argv[0], "--overdue") == 0) {
@@ -140,6 +145,9 @@ todo_error_t todo_list(int argc, char** argv)
                 fprintf(stderr, "Invalid argument format: %s\n", argv[1]);
                 return TODO_ERROR_ARGUMENT;
             }
+        } else if (strcmp(argv[0], "--search") == 0) {
+            flag       = LIST_FLAG_SEARCH;
+            search_str = argv[1];
         } else {
             fprintf(stderr, "Unknown argument: %s %s\n", argv[0], argv[1]);
             return TODO_ERROR_ARGUMENT;
@@ -172,9 +180,7 @@ todo_error_t todo_list(int argc, char** argv)
             break;
 
         case LIST_FLAG_UNTIL:
-            char sql_str[STR_LEN_MAX] = "";
-
-            int res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_UNTIL, until_str);
+            res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_UNTIL, until_str);
 
             if ((res < 0) || (res >= STR_LEN_MAX)) {
                 fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
@@ -192,6 +198,23 @@ todo_error_t todo_list(int argc, char** argv)
 
         case LIST_FLAG_ALL:
             if (sqlite3_exec(db, DB_SELECT_ALL, callback, 0, &zErrMsg) != SQLITE_OK) {
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+                sqlite3_close(db);
+                return TODO_ERROR_DB;
+            }
+            break;
+
+        case LIST_FLAG_SEARCH:
+            res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_SEARCH, search_str);
+
+            if ((res < 0) || (res >= STR_LEN_MAX)) {
+                fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+                sqlite3_close(db);
+                return TODO_ERROR_ARGUMENT;
+            }
+
+            if (sqlite3_exec(db, sql_str, callback, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
                 sqlite3_close(db);

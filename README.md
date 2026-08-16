@@ -32,10 +32,13 @@ todo add "Become the president of the US" --due "tomorrow"
 todo add "Fly to the moon" --due "2099-12-31 23:59:59"
 
 # List TODOs
-todo list                 # list open TODOs
-todo list --overdue       # list overdue TODOs
-todo list --all           # list all TODOs
-todo list --until <date>  # list issue which are due until <date>
+todo list                     # list open TODOs
+todo list --overdue           # list overdue TODOs
+todo list --all               # list all TODOs
+todo list --until <date>      # list issue which are due until <date>
+todo list --until "today"
+todo list --search <text>     # list issue which match the search
+todo list --search "homework"
 
 # Add due date to a TODO
 todo due <id> <date>
