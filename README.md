@@ -19,9 +19,24 @@ On Windows PowerShell:
 ## Run
 
 ```bash
-todo add "do something useful with your life..."
-todo list
-todo review (NOT YET IMPLEMENTED)
+# Add a new TODO
+todo add <text>
+todo add "Do something useful with my life!"
+
+# List TODOs
+todo list        # list overdue TODOs
+todo list --all  # list all TODOs
+
+# Add due date to a TODO
+todo due <id> <date>
+todo due 42 "2026-08-16 12:52:28"
+
+# Mark a TODO as done
+todo done <id>
+todo done 42
+
+# Interactively review overdue TODOs (NOT YET IMPLEMENTED)
+todo review
 ```
 
 The executable is produced in the project root as `todo` / `todo.exe`.
