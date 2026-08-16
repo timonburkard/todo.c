@@ -49,7 +49,7 @@ todo due 42 "2026-08-16 12:52:28"
 todo done <id>
 todo done 42
 
-# Interactively review overdue TODOs (NOT YET IMPLEMENTED)
+# Interactively review open TODOs
 todo review
 
 # <date> can be:

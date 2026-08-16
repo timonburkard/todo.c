@@ -40,23 +40,23 @@ int main(int argc, char** argv)
             how_to_use_due();
             return TODO_ERROR_ARGUMENT;
         }
-        uint32_t id = atoi(argv[2]);
-        if (id == 0) {
+        int32_t id = atoi(argv[2]);
+        if (id <= 0) {
             how_to_use_due();
             return TODO_ERROR_ARGUMENT;
         }
-        error = todo_due(id, argv[3]);
+        error = todo_due((uint32_t)id, argv[3]);
     } else if (strcmp(argv[1], "done") == 0) {
         if (argc != 3) {
             how_to_use_done();
             return TODO_ERROR_ARGUMENT;
         }
-        uint32_t id = atoi(argv[2]);
-        if (id == 0) {
+        int32_t id = atoi(argv[2]);
+        if (id <= 0) {
             how_to_use_done();
             return TODO_ERROR_ARGUMENT;
         }
-        error = todo_done(id);
+        error = todo_done((uint32_t)id);
     } else if (strcmp(argv[1], "review") == 0) {
         if (argc != 2) {
             how_to_use_review();
