@@ -25,6 +25,9 @@ ctest --test-dir build --output-on-failure
 ## Run
 
 ```bash
+# Version
+todo --version
+
 # Add a new TODO
 todo add <text> [--due <date>]
 todo add "Do something useful with my life!"
