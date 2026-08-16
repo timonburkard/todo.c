@@ -28,15 +28,18 @@ ctest --test-dir build --output-on-failure
 # Add a new TODO
 todo add <text> [--due <date>]
 todo add "Do something useful with my life!"
-todo add "Fly to the moon" --due 2099-12-31 23:59:59
+todo add "Become the president of the US" --due "tomorrow"
+todo add "Fly to the moon" --due "2099-12-31 23:59:59"
 
 # List TODOs
-todo list                 # list overdue TODOs
+todo list                 # list open TODOs
+todo list --overdue       # list overdue TODOs
 todo list --all           # list all TODOs
 todo list --until <date>  # list issue which are due until <date> (NOT YET IMPLEMENTED)
 
 # Add due date to a TODO
 todo due <id> <date>
+todo due 13 "today"
 todo due 42 "2026-08-16 12:52:28"
 
 # Mark a TODO as done

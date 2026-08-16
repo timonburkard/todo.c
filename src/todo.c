@@ -20,7 +20,8 @@
 #define DB_INSERT_INTO          "INSERT INTO todos (text, due_at, done_at) VALUES ('%s', NULL, NULL);"
 #define DB_INSERT_INTO_WITH_DUE "INSERT INTO todos (text, due_at, done_at) VALUES ('%s', '%s', NULL);"
 #define DB_SELECT_ALL           "SELECT id, text, created_at, due_at, done_at FROM todos;"
-#define DB_SELECT_OVERDUE       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at < CURRENT_TIMESTAMP AND done_at IS NULL;"
+#define DB_SELECT_DEFAULT       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE done_at IS NULL;"
+#define DB_SELECT_OVERDUE       "SELECT id, text, created_at, due_at, done_at FROM todos WHERE due_at <= CURRENT_TIMESTAMP AND done_at IS NULL;"
 #define DB_UPDATE_DUE           "UPDATE todos SET due_at = '%s' WHERE id = %u;"
 #define DB_UPDATE_DONE          "UPDATE todos SET done_at = CURRENT_TIMESTAMP WHERE id = %u;"
 
@@ -102,15 +103,23 @@ todo_error_t todo_add(int argc, char** argv)
     return TODO_ERROR_OK;
 }
 
+typedef enum {
+    LIST_FLAG_DEFAULT,
+    LIST_FLAG_OVERDUE,
+    LIST_FLAG_ALL,
+} list_flag_t;
+
 todo_error_t todo_list(int argc, char** argv)
 {
-    bool  all              = false;
-    char* zErrMsg          = 0;
-    char  str[STR_LEN_MAX] = "";
+    list_flag_t flag             = LIST_FLAG_DEFAULT;
+    char*       zErrMsg          = 0;
+    char        str[STR_LEN_MAX] = "";
 
     for (int i = 0; i < argc; i++) {
-        if (strcmp(argv[i], "--all") == 0) {
-            all = true;
+        if (strcmp(argv[0], "--overdue") == 0) {
+            flag = LIST_FLAG_OVERDUE;
+        } else if (strcmp(argv[i], "--all") == 0) {
+            flag = LIST_FLAG_ALL;
         } else {
             fprintf(stderr, "Unknown argument: %s\n", argv[i]);
             return TODO_ERROR_ARGUMENT;
@@ -123,20 +132,38 @@ todo_error_t todo_list(int argc, char** argv)
         return TODO_ERROR_DB;
     }
 
-    if (all) {
-        if (sqlite3_exec(db, DB_SELECT_ALL, callback, 0, &zErrMsg) != SQLITE_OK) {
-            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+    switch (flag) {
+        case LIST_FLAG_DEFAULT:
+            if (sqlite3_exec(db, DB_SELECT_DEFAULT, callback, 0, &zErrMsg) != SQLITE_OK) {
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+                sqlite3_close(db);
+                return TODO_ERROR_DB;
+            }
+            break;
+
+        case LIST_FLAG_OVERDUE:
+            if (sqlite3_exec(db, DB_SELECT_OVERDUE, callback, 0, &zErrMsg) != SQLITE_OK) {
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+                sqlite3_close(db);
+                return TODO_ERROR_DB;
+            }
+            break;
+
+        case LIST_FLAG_ALL:
+            if (sqlite3_exec(db, DB_SELECT_ALL, callback, 0, &zErrMsg) != SQLITE_OK) {
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+                sqlite3_close(db);
+                return TODO_ERROR_DB;
+            }
+            break;
+
+        default:
             sqlite3_free(zErrMsg);
             sqlite3_close(db);
-            return TODO_ERROR_DB;
-        }
-    } else {
-        if (sqlite3_exec(db, DB_SELECT_OVERDUE, callback, 0, &zErrMsg) != SQLITE_OK) {
-            fprintf(stderr, "SQL error: %s\n", zErrMsg);
-            sqlite3_free(zErrMsg);
-            sqlite3_close(db);
-            return TODO_ERROR_DB;
-        }
+            return TODO_ERROR_GENERAL;
     }
 
     sqlite3_free(zErrMsg);
