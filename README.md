@@ -31,8 +31,9 @@ todo add "Do something useful with my life!"
 todo add "Fly to the moon" --due 2099-12-31 23:59:59
 
 # List TODOs
-todo list        # list overdue TODOs
-todo list --all  # list all TODOs
+todo list                 # list overdue TODOs
+todo list --all           # list all TODOs
+todo list --until <date>  # list issue which are due until <date> (NOT YET IMPLEMENTED)
 
 # Add due date to a TODO
 todo due <id> <date>
@@ -44,6 +45,15 @@ todo done 42
 
 # Interactively review overdue TODOs (NOT YET IMPLEMENTED)
 todo review
+
+# <date> can be:
+ - ISO datetime: "YYYY-MM-DD hh:mm:ss"
+ - ISO date:     "YYYY-MM-DD"
+ - Today:        "today"
+ - Tomorrow:     "tomorrow"
+ - In a week:    "week"
+ - In a month:   "month"
+ - In a year:    "year"
 ```
 
 The executable is produced in the project root as `todo` / `todo.exe`.
