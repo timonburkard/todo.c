@@ -22,11 +22,22 @@ run_test() {
     local expected_status="$2"
     shift 2
 
+    local input=""
+
+    if [ "$1" = "--input" ]; then
+        input="$2"
+        shift 2
+    fi
+
     echo -n "Testing: $test_name ... "
 
-    # Run command and capture exit code (don't exit on failure)
-    "$@" > /dev/null 2>&1
-    actual_status=$?
+    if [ -n "$input" ]; then
+        printf '%s\n' "$input" | "$@" > /dev/null 2>&1
+    else
+        "$@" > /dev/null 2>&1
+    fi
+
+    local actual_status=$?
 
     if [ "$actual_status" -eq "$expected_status" ]; then
         echo -e "${GREEN}PASS${NC}"
@@ -52,7 +63,7 @@ TEMP_DIR=$(mktemp -d) || { echo "Failed to create temp directory"; exit 1; }
 cd "$TEMP_DIR" || { echo "Failed to cd to temp directory"; exit 1; }
 
 # Test 1: Add a simple todo
-run_test "add simple todo" 0 "$TODO_BIN" add "Buy milk"
+run_test "add simple todo" 0 --input y "$TODO_BIN" add "Buy milk"
 
 # Test 2: Add another todo
 run_test "add second todo" 0 "$TODO_BIN" add "Walk the dog"
