@@ -25,8 +25,9 @@ ctest --test-dir build --output-on-failure
 ## Run
 
 ```bash
-# Version
-todo --version
+# General
+todo --version | -V
+todo --help | -h
 
 # Add a new TODO
 todo add <text> [--due <date>]
