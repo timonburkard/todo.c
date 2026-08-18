@@ -163,7 +163,14 @@ static void help_add(bool is_error)
            "  <TEXT>  TODO text\n"
            "\n"
            "\x1b[4mOptions:\x1b[24m\n"
-           "      --due <DATE>  Due date\n"
+           "      --due <DATE>  Due date. One of:\n"
+           "                      YYYY-MM-DD hh:mm:ss\n"
+           "                      YYYY-MM-DD\n"
+           "                      today\n"
+           "                      tomorrow\n"
+           "                      week\n"
+           "                      month\n"
+           "                      year\n"
            "  -h, --help        Print help\n");
 }
 
@@ -180,9 +187,16 @@ static void help_list(bool is_error)
            "\x1b[4mOptions:\x1b[24m\n"
            "      --overdue          List overdue TODOs\n"
            "      --all              List all TODOs, including completed\n"
-           "      --until <DATE>     List TODOs due until DATE\n"
+           "      --until <DATE>     List TODOs due until DATE. One of:\n"
+           "                           YYYY-MM-DD hh:mm:ss\n"
+           "                           YYYY-MM-DD\n"
+           "                           today\n"
+           "                           tomorrow\n"
+           "                           week\n"
+           "                           month\n"
+           "                           year\n"
            "      --search <TEXT>    List TODOs matching TEXT\n"
-           "  -h, --help              Print help\n");
+           "  -h, --help             Print help\n");
 }
 
 static void help_due(bool is_error)
@@ -197,7 +211,14 @@ static void help_due(bool is_error)
            "\n"
            "\x1b[4mArguments:\x1b[24m\n"
            "  <ID>    TODO ID\n"
-           "  <DATE>  Due date\n"
+           "  <DATE>  Due date. One of:\n"
+           "            YYYY-MM-DD hh:mm:ss\n"
+           "            YYYY-MM-DD\n"
+           "            today\n"
+           "            tomorrow\n"
+           "            week\n"
+           "            month\n"
+           "            year\n"
            "\n"
            "\x1b[4mOptions:\x1b[24m\n"
            "  -h, --help  Print help\n");
