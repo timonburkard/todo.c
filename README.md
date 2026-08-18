@@ -101,9 +101,3 @@ Please choose new due date: 2028-11-07
 +-------------------------------+
 Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) s
 ```
-
-## Notes
-
-- The project uses SQLite for storage.
-- SQLite creates the database file automatically if it does not already exist.
-- The app stores todos in `todo.db` in the project root.
