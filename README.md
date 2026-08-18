@@ -16,6 +16,8 @@ On Windows PowerShell:
 .\build.ps1
 ```
 
+The executable is produced in the project root as `todo` / `todo.exe`.
+
 ### Tests
 
 ```bash
@@ -99,8 +101,6 @@ Please choose new due date: 2028-11-07
 +-------------------------------+
 Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) s
 ```
-
-The executable is produced in the project root as `todo` / `todo.exe`.
 
 ## Notes
 
