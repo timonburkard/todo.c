@@ -385,6 +385,8 @@ todo_error_t todo_review(void)
             return TODO_ERROR_SQL;
         }
 
+        is_selected = false;
+
         do {
             printf("Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) ");
             action = read_char();
@@ -421,7 +423,6 @@ todo_error_t todo_review(void)
                 case 'M':
                 case 'm':
                     do {
-
                         printf("Please choose new due date: ");
                         if (read_string(due_str, STR_LEN_MAX) == NULL) {
                             printf("String too long!\n");
@@ -435,12 +436,10 @@ todo_error_t todo_review(void)
                         }
                     } while (!is_selected);
 
-                    res         = snprintf(sql_str, STR_LEN_MAX, DB_UPDATE_DUE, due_iso_str, id);
-                    is_selected = true;
+                    res = snprintf(sql_str, STR_LEN_MAX, DB_UPDATE_DUE, due_iso_str, id);
                     break;
 
                 default:
-                    is_selected = false;
                     printf("Invalid selection!\n");
                     break;
             }
