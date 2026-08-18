@@ -50,14 +50,17 @@ static sqlite3* db;
 static volatile uint16_t callback_ids_amount            = 0;
 static volatile uint32_t callback_ids[CALLBACK_IDS_MAX] = {0};
 
-static void print_todo(char* id, char* text, char* created_at, char* due_at, char* done_at);
-static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding);
-static int  callback_print(void* NotUsed, int argc, char** argv, char** azColName);
-static int  callback_get_id(void* NotUsed, int argc, char** argv, char** azColName);
+static char  read_char(void);
+static char* read_string(char* string, int size);
+static void  print_todo(char* id, char* text, char* created_at, char* due_at, char* done_at);
+static bool  convert_to_iso(char* str, char** iso_str_ptr, round_t rounding);
+static int   callback_print(void* NotUsed, int argc, char** argv, char** azColName);
+static int   callback_get_id(void* NotUsed, int argc, char** argv, char** azColName);
 
 todo_error_t todo_add(int argc, char** argv)
 {
     int   res              = 0;
+    bool  do_create_db     = false;
     char* zErrMsg          = NULL;
     char* due_date         = "";
     char* text             = "";
@@ -83,10 +86,37 @@ todo_error_t todo_add(int argc, char** argv)
         }
     }
 
-    if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "SQL error: Can't open database: %s\n", sqlite3_errmsg(db));
+    do_create_db = false;
+
+    if (sqlite3_open_v2(DB_NAME, &db, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
+        printf("No database in the current directory!\n");
         sqlite3_close(db);
-        return TODO_ERROR_SQL;
+        db = NULL;
+
+        do {
+            printf("Create new database? (Y/n) ");
+
+            char input = read_char();
+
+            if ((input == '\n') || (input == 'y') || (input == 'Y')) {
+                do_create_db = true;
+                break;
+            }
+
+            if ((input == 'n') || (input == 'N')) {
+                return TODO_ERROR_OK;
+            }
+
+            printf("Invalid selection!\n");
+        } while (true);
+    }
+
+    if (do_create_db) {
+        if (sqlite3_open_v2(DB_NAME, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK) {
+            sqlite3_errmsg(db);
+            sqlite3_close(db);
+            return TODO_ERROR_SQL;
+        }
     }
 
     if (sqlite3_exec(db, DB_CREATE_TABLE_IF_NOT_EXISTS, NULL, 0, &zErrMsg) != SQLITE_OK) {
@@ -356,9 +386,8 @@ todo_error_t todo_review(void)
         }
 
         do {
-            printf("Please choose action: S(kip), D(one), M(ove), R(emove), A(bort)\n");
-            scanf(" %c", &action);
-            getchar(); // consume '\n'
+            printf("Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) ");
+            action = read_char();
 
             switch (action) {
                 // Abort
@@ -392,13 +421,12 @@ todo_error_t todo_review(void)
                 case 'M':
                 case 'm':
                     do {
-                        printf("Please choose new due date:\n");
-                        if (fgets(due_str, STR_LEN_MAX, stdin) == NULL) {
+
+                        printf("Please choose new due date: ");
+                        if (read_string(due_str, STR_LEN_MAX) == NULL) {
                             printf("String too long!\n");
                             continue;
                         }
-
-                        due_str[strcspn(due_str, "\n")] = '\0';
 
                         if (convert_to_iso(due_str, &due_iso_str, ROUND_DOWN)) {
                             is_selected = true;
@@ -692,4 +720,51 @@ static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding)
     *iso_str_ptr = static_iso_str;
 
     return true;
+}
+
+/**
+ * @brief Read a single character from stdin
+ *
+ * Reads a single character, that is confirmed with enter.
+ * If enter is pressed directly, '\n' is returned.
+ *
+ * Consumes all the characters (up to and including '\n' resp. EOF). This is so that subsequence function calls don't
+ * see any leftovers in the stdin buffer.
+ *
+ * @return char
+ */
+static char read_char(void)
+{
+    char character = (char)getchar();
+
+    // Consume the rest of the input line
+    if (character != '\n') {
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF) {}
+    }
+
+    return character;
+}
+
+/**
+ * @brief Read a string from stdin
+ *
+ * Reads a string, that is confirmed with enter.
+ *
+ * The enter ('\n') is not returned. Instead, the string ends directly with `\0`.
+ *
+ * @param[out] string -- Output string
+ * @param[in] size    -- Max. number of bytes that are written to @p string
+ *
+ * @return char* -- @p string on success, NULL on failure
+ */
+static char* read_string(char* string, int size)
+{
+    if (fgets(string, size, stdin) == NULL) {
+        return NULL;
+    }
+
+    string[strcspn(string, "\n")] = '\0';
+
+    return string;
 }
