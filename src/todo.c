@@ -64,8 +64,7 @@ todo_error_t todo_add(int argc, char** argv)
     char  str[STR_LEN_MAX] = "";
 
     if (argc < 1) {
-        fprintf(stderr, "Not enough arguments");
-        return TODO_ERROR_ARGUMENT;
+        UNREACHABLE();
     }
 
     text = argv[0];
@@ -74,30 +73,27 @@ todo_error_t todo_add(int argc, char** argv)
         if (strcmp(argv[1], "--due") == 0) {
             if (argc > 2) {
                 if (!convert_to_iso(argv[2], &due_date, ROUND_DOWN)) {
-                    fprintf(stderr, "Invalid argument format: %s\n", argv[2]);
                     return TODO_ERROR_ARGUMENT;
                 }
             } else {
-                fprintf(stderr, "Invalid number of arguments");
                 return TODO_ERROR_ARGUMENT;
             }
         } else {
-            fprintf(stderr, "Unknown argument: %s\n", argv[1]);
             return TODO_ERROR_ARGUMENT;
         }
     }
 
     if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "SQL error: Can't open database: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     if (sqlite3_exec(db, DB_CREATE_TABLE_IF_NOT_EXISTS, NULL, 0, &zErrMsg) != SQLITE_OK) {
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     if (due_date[0] == '\0') {
@@ -107,17 +103,17 @@ todo_error_t todo_add(int argc, char** argv)
     }
 
     if ((res < 0) || (res >= STR_LEN_MAX)) {
-        fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+        fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
         sqlite3_free(zErrMsg);
         sqlite3_close(db);
-        return TODO_ERROR_ARGUMENT;
+        return TODO_ERROR_GENERAL;
     }
 
     if (sqlite3_exec(db, str, NULL, 0, &zErrMsg) != SQLITE_OK) {
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     sqlite3_free(zErrMsg);
@@ -149,29 +145,26 @@ todo_error_t todo_list(int argc, char** argv)
         } else if (strcmp(argv[0], "--all") == 0) {
             flag = LIST_FLAG_ALL;
         } else {
-            fprintf(stderr, "Unknown argument: %s\n", argv[0]);
             return TODO_ERROR_ARGUMENT;
         }
     } else if (argc == 2) {
         if (strcmp(argv[0], "--until") == 0) {
             flag = LIST_FLAG_UNTIL;
             if (!convert_to_iso(argv[1], &until_str, ROUND_UP)) {
-                fprintf(stderr, "Invalid argument format: %s\n", argv[1]);
                 return TODO_ERROR_ARGUMENT;
             }
         } else if (strcmp(argv[0], "--search") == 0) {
             flag       = LIST_FLAG_SEARCH;
             search_str = argv[1];
         } else {
-            fprintf(stderr, "Unknown argument: %s %s\n", argv[0], argv[1]);
             return TODO_ERROR_ARGUMENT;
         }
     }
 
     if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "SQL error: Can't open database: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     switch (flag) {
@@ -180,7 +173,7 @@ todo_error_t todo_list(int argc, char** argv)
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
                 sqlite3_close(db);
-                return TODO_ERROR_DB;
+                return TODO_ERROR_SQL;
             }
             break;
 
@@ -189,7 +182,7 @@ todo_error_t todo_list(int argc, char** argv)
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
                 sqlite3_close(db);
-                return TODO_ERROR_DB;
+                return TODO_ERROR_SQL;
             }
             break;
 
@@ -197,16 +190,16 @@ todo_error_t todo_list(int argc, char** argv)
             res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_UNTIL, until_str);
 
             if ((res < 0) || (res >= STR_LEN_MAX)) {
-                fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+                fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
                 sqlite3_close(db);
-                return TODO_ERROR_ARGUMENT;
+                return TODO_ERROR_GENERAL;
             }
 
             if (sqlite3_exec(db, sql_str, callback_print, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
                 sqlite3_close(db);
-                return TODO_ERROR_DB;
+                return TODO_ERROR_SQL;
             }
             break;
 
@@ -215,7 +208,7 @@ todo_error_t todo_list(int argc, char** argv)
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
                 sqlite3_close(db);
-                return TODO_ERROR_DB;
+                return TODO_ERROR_SQL;
             }
             break;
 
@@ -223,24 +216,21 @@ todo_error_t todo_list(int argc, char** argv)
             res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_SEARCH, search_str);
 
             if ((res < 0) || (res >= STR_LEN_MAX)) {
-                fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+                fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
                 sqlite3_close(db);
-                return TODO_ERROR_ARGUMENT;
+                return TODO_ERROR_GENERAL;
             }
 
             if (sqlite3_exec(db, sql_str, callback_print, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
                 sqlite3_close(db);
-                return TODO_ERROR_DB;
+                return TODO_ERROR_SQL;
             }
             break;
 
         default:
             UNREACHABLE();
-            sqlite3_free(zErrMsg);
-            sqlite3_close(db);
-            return TODO_ERROR_GENERAL;
     }
 
     sqlite3_free(zErrMsg);
@@ -256,29 +246,28 @@ todo_error_t todo_due(uint32_t id, char* due_date)
     char  str[STR_LEN_MAX] = "";
 
     if (!convert_to_iso(due_date, &due_date, ROUND_DOWN)) {
-        fprintf(stderr, "Invalid argument format: %s\n", due_date);
         return TODO_ERROR_ARGUMENT;
     }
 
     if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "SQL error: Can't open database: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     res = snprintf(str, STR_LEN_MAX, DB_UPDATE_DUE, due_date, id);
 
     if ((res < 0) || (res >= STR_LEN_MAX)) {
-        fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+        fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
         sqlite3_close(db);
-        return TODO_ERROR_ARGUMENT;
+        return TODO_ERROR_GENERAL;
     }
 
     if (sqlite3_exec(db, str, NULL, 0, &zErrMsg) != SQLITE_OK) {
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     sqlite3_free(zErrMsg);
@@ -294,24 +283,24 @@ todo_error_t todo_done(uint32_t id)
     char  str[STR_LEN_MAX] = "";
 
     if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "SQL error: Can't open database: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     res = snprintf(str, STR_LEN_MAX, DB_UPDATE_DONE, id);
 
     if ((res < 0) || (res >= STR_LEN_MAX)) {
-        fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+        fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
         sqlite3_close(db);
-        return TODO_ERROR_ARGUMENT;
+        return TODO_ERROR_GENERAL;
     }
 
     if (sqlite3_exec(db, str, NULL, 0, &zErrMsg) != SQLITE_OK) {
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     sqlite3_free(zErrMsg);
@@ -332,9 +321,9 @@ todo_error_t todo_review(void)
     char     sql_str[STR_LEN_MAX] = "";
 
     if (sqlite3_open(DB_NAME, &db) != SQLITE_OK) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "SQL error: Can't open database: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     callback_ids_amount = 0;
@@ -343,7 +332,7 @@ todo_error_t todo_review(void)
         fprintf(stderr, "SQL error: %s\n", zErrMsg);
         sqlite3_free(zErrMsg);
         sqlite3_close(db);
-        return TODO_ERROR_DB;
+        return TODO_ERROR_SQL;
     }
 
     for (uint16_t i = 0; i < callback_ids_amount; i++) {
@@ -354,16 +343,16 @@ todo_error_t todo_review(void)
         res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_ID, id);
 
         if ((res < 0) || (res >= STR_LEN_MAX)) {
-            fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+            fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
             sqlite3_close(db);
-            return TODO_ERROR_ARGUMENT;
+            return TODO_ERROR_GENERAL;
         }
 
         if (sqlite3_exec(db, sql_str, callback_print, 0, &zErrMsg) != SQLITE_OK) {
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
             sqlite3_close(db);
-            return TODO_ERROR_DB;
+            return TODO_ERROR_SQL;
         }
 
         do {
@@ -434,17 +423,17 @@ todo_error_t todo_review(void)
         }
 
         if ((res < 0) || (res >= STR_LEN_MAX)) {
-            fprintf(stderr, "SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
+            fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
             sqlite3_free(zErrMsg);
             sqlite3_close(db);
-            return TODO_ERROR_ARGUMENT;
+            return TODO_ERROR_GENERAL;
         }
 
         if (sqlite3_exec(db, sql_str, NULL, 0, &zErrMsg) != SQLITE_OK) {
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
             sqlite3_close(db);
-            return TODO_ERROR_DB;
+            return TODO_ERROR_SQL;
         }
     }
 
@@ -517,7 +506,6 @@ static int callback_print(void* NotUsed, int argc, char** argv, char** azColName
 
     if (argc < 5) {
         UNREACHABLE();
-        return 1;
     }
 
     print_todo(argv[0], argv[1], argv[2], argv[3], argv[4]);
@@ -541,7 +529,6 @@ static int callback_get_id(void* NotUsed, int argc, char** argv, char** azColNam
 
     if (argc < 1) {
         UNREACHABLE();
-        return 1;
     }
 
     if (callback_ids_amount < CALLBACK_IDS_MAX) {
@@ -549,7 +536,6 @@ static int callback_get_id(void* NotUsed, int argc, char** argv, char** azColNam
 
         if (id <= 0) {
             UNREACHABLE();
-            return 1;
         }
 
         callback_ids[callback_ids_amount] = (uint32_t)id;
@@ -615,7 +601,6 @@ static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding)
             snprintf(static_iso_str, DATETIME_STR_SIZE, "%04u-%02u-%02u %02u:%02u:%02u", time_local.tm_year + 1900, time_local.tm_mon + 1, time_local.tm_mday, 23, 59, 59);
         } else {
             UNREACHABLE();
-            return false;
         }
 
         *iso_str_ptr = static_iso_str;

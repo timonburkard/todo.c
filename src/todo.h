@@ -7,7 +7,7 @@ typedef enum {
     TODO_ERROR_OK       = 0,
     TODO_ERROR_GENERAL  = 1,
     TODO_ERROR_ARGUMENT = 2,
-    TODO_ERROR_DB       = 3,
+    TODO_ERROR_SQL      = 3,
 } todo_error_t;
 
 todo_error_t todo_add(int argc, char** argv);
