@@ -66,6 +66,40 @@ todo review
  - In a year:    "year"
 ```
 
+### Example: Review
+
+```bash
+todo review
++-------------------------------------+
+| #1                                  |
+| Do something useful with my life... |
+|                                     |
+| created = 2026-08-18 20:57:02       |
+| due     =                           |
+| done    =                           |
++-------------------------------------+
+Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) d
++--------------------------------+
+| #2                             |
+| Become the president of the US |
+|                                |
+| created = 2026-08-18 20:57:22  |
+| due     = 2026-08-19 00:00:00  |
+| done    =                      |
++--------------------------------+
+Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) m
+Please choose new due date: 2028-11-07
++-------------------------------+
+| #3                            |
+| Fly to the moon               |
+|                               |
+| created = 2026-08-18 20:57:33 |
+| due     = 2099-12-31 23:59:59 |
+| done    =                     |
++-------------------------------+
+Please choose action: S(kip), D(one), M(ove), R(emove), A(bort) s
+```
+
 The executable is produced in the project root as `todo` / `todo.exe`.
 
 ## Notes
