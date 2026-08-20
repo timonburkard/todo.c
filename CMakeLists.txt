@@ -37,6 +37,7 @@ target_compile_options(todo PRIVATE
     -Wshadow
     -Wconversion
     -Wpedantic
+    -Werror
 )
 
 set_target_properties(todo PROPERTIES
