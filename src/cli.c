@@ -27,10 +27,10 @@ typedef struct {
 } cmd_t;
 
 static const cmd_t commands[] = {
-    {   .name = "add",    .function = add},
-    {  .name = "list",   .function = list},
-    {   .name = "due",    .function = due},
-    {  .name = "done",   .function = done},
+    {.name = "add",    .function = add   },
+    {.name = "list",   .function = list  },
+    {.name = "due",    .function = due   },
+    {.name = "done",   .function = done  },
     {.name = "review", .function = review},
 };
 
