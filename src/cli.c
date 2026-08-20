@@ -57,7 +57,7 @@ int main(int argc, char** argv)
 
         error = todo_list(argc - 2, &argv[2]);
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_list(true);
         }
     } else if (strcmp(argv[1], "due") == 0) {
         if (HELP_CMD(argc, argv)) {
@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 
         error = todo_due((uint32_t)id, argv[3]);
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_due(true);
         }
     } else if (strcmp(argv[1], "done") == 0) {
         if (HELP_CMD(argc, argv)) {
@@ -99,7 +99,7 @@ int main(int argc, char** argv)
 
         error = todo_done((uint32_t)id);
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_done(true);
         }
     } else if (strcmp(argv[1], "review") == 0) {
         if (HELP_CMD(argc, argv)) {
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 
         error = todo_review();
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_review(true);
         }
     } else {
         help(true);
