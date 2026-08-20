@@ -3,6 +3,26 @@
 
 #include <stdint.h>
 
+/**
+ * @brief Mark code as unreachable
+ *
+ */
+#define UNREACHABLE()                                                               \
+    do {                                                                            \
+        fprintf(stderr, "UNREACHABLE code reached at %s:%d\n", __FILE__, __LINE__); \
+        abort();                                                                    \
+    } while (0)
+
+/**
+ * @brief Mark code as unreachable with annotation
+ *
+ */
+#define UNREACHABLE_A(text)                                                                    \
+    do {                                                                                       \
+        fprintf(stderr, "UNREACHABLE code reached at %s:%d | %s\n", __FILE__, __LINE__, text); \
+        abort();                                                                               \
+    } while (0)
+
 typedef enum {
     TODO_ERROR_OK       = 0,
     TODO_ERROR_GENERAL  = 1,

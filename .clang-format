@@ -17,7 +17,7 @@ IndentWidth: 4
 Language: Cpp
 
 AlignAfterOpenBracket: Align
-AlignArrayOfStructures: Right
+AlignArrayOfStructures: Left
 AlignConsecutiveAssignments:
     Enabled: true
     AcrossEmptyLines: false
