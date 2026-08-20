@@ -121,7 +121,7 @@ int main(int argc, char** argv)
         error = TODO_ERROR_ARGUMENT;
     }
 
-    return error;
+    return (int)error;
 }
 
 #define ERROR_HOW_TO_USE "ERROR, this is how to use:\n\n"
