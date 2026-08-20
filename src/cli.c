@@ -85,7 +85,7 @@ static void version(void)
 }
 
 /**
- * @brief Handle ``add`` command
+ * @brief Handle `add` command
  *
  * @param argc -- Number of arguments from the user AFTER the `todo add` command
  * @param argv -- Arguments from the user AFTER the `todo add` command
