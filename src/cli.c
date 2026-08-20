@@ -26,7 +26,7 @@ int main(int argc, char** argv)
     }
 
     if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "-V") == 0)) {
-        printf("v" TODO_VERSION);
+        printf("v" TODO_VERSION "\n");
     } else if (HELP(argc, argv)) {
         help(false);
     } else if (strcmp(argv[1], "add") == 0) {
