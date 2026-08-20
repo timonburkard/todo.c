@@ -25,8 +25,8 @@ int main(int argc, char** argv)
         return TODO_ERROR_ARGUMENT;
     }
 
-    if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "--V") == 0)) {
-        printf("v" TODO_VERSION);
+    if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "-V") == 0)) {
+        printf("v" TODO_VERSION "\n");
     } else if (HELP(argc, argv)) {
         help(false);
     } else if (strcmp(argv[1], "add") == 0) {
@@ -57,7 +57,7 @@ int main(int argc, char** argv)
 
         error = todo_list(argc - 2, &argv[2]);
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_list(true);
         }
     } else if (strcmp(argv[1], "due") == 0) {
         if (HELP_CMD(argc, argv)) {
@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 
         error = todo_due((uint32_t)id, argv[3]);
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_due(true);
         }
     } else if (strcmp(argv[1], "done") == 0) {
         if (HELP_CMD(argc, argv)) {
@@ -99,7 +99,7 @@ int main(int argc, char** argv)
 
         error = todo_done((uint32_t)id);
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_done(true);
         }
     } else if (strcmp(argv[1], "review") == 0) {
         if (HELP_CMD(argc, argv)) {
@@ -114,14 +114,14 @@ int main(int argc, char** argv)
 
         error = todo_review();
         if (error == TODO_ERROR_ARGUMENT) {
-            help_add(true);
+            help_review(true);
         }
     } else {
         help(true);
         error = TODO_ERROR_ARGUMENT;
     }
 
-    return error;
+    return (int)error;
 }
 
 #define ERROR_HOW_TO_USE "ERROR, this is how to use:\n\n"

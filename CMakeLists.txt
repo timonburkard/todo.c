@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(todo
-    VERSION 0.0.3
+    VERSION 0.0.4
     LANGUAGES C
 )
 
@@ -37,6 +37,7 @@ target_compile_options(todo PRIVATE
     -Wshadow
     -Wconversion
     -Wpedantic
+    -Werror
 )
 
 set_target_properties(todo PROPERTIES
