@@ -25,7 +25,7 @@ int main(int argc, char** argv)
         return TODO_ERROR_ARGUMENT;
     }
 
-    if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "--V") == 0)) {
+    if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "-V") == 0)) {
         printf("v" TODO_VERSION);
     } else if (HELP(argc, argv)) {
         help(false);
