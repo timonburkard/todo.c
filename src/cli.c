@@ -6,14 +6,16 @@
 #include "todo.h"
 #include "version.h"
 
-static void help(bool is_error);
-static void help_add(bool is_error);
-static void help_list(bool is_error);
-static void help_due(bool is_error);
-static void help_done(bool is_error);
-static void help_review(bool is_error);
+#define HELP_ON_SPECIFIC_CMD(argc, argv) (((argc) > 2) && ((strcmp((argv)[2], "--help") == 0) || (strcmp((argv)[2], "-h") == 0)))
 
+static void help(bool is_error);
 static void version(void);
+
+static void add_help(bool is_error);
+static void list_help(bool is_error);
+static void due_help(bool is_error);
+static void done_help(bool is_error);
+static void review_help(bool is_error);
 
 static todo_error_t add(int argc, char** argv);
 static todo_error_t list(int argc, char** argv);
@@ -24,14 +26,15 @@ static todo_error_t review(int argc, char** argv);
 typedef struct {
     const char* name;
     todo_error_t (*function)(int, char**);
+    void (*helper)(bool);
 } cmd_t;
 
 static const cmd_t commands[] = {
-    {.name = "add",    .function = add   },
-    {.name = "list",   .function = list  },
-    {.name = "due",    .function = due   },
-    {.name = "done",   .function = done  },
-    {.name = "review", .function = review},
+    {.name = "add",    .function = add,    .helper = add_help   },
+    {.name = "list",   .function = list,   .helper = list_help  },
+    {.name = "due",    .function = due,    .helper = due_help   },
+    {.name = "done",   .function = done,   .helper = done_help  },
+    {.name = "review", .function = review, .helper = review_help},
 };
 
 int main(int argc, char** argv)
@@ -52,9 +55,24 @@ int main(int argc, char** argv)
     }
 
     for (uint8_t i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
-        if (strcmp(argv[1], commands[i].name) == 0) {
+        if (strcmp(argv[1], commands[i].name) != 0) {
+            continue;
+        }
+
+        if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
+            if (commands[i].helper != NULL) {
+                commands[i].helper(false);
+                return TODO_ERROR_OK;
+            }
+
+            UNREACHABLE_A("Each command must have a helper function!");
+        }
+
+        if (commands[i].function != NULL) {
             return commands[i].function(argc - 2, &argv[2]);
         }
+
+        UNREACHABLE_A("Each command must have a function!");
     }
 
     help(true);
@@ -65,8 +83,6 @@ static void version(void)
 {
     printf("v" TODO_VERSION "\n");
 }
-
-#define HELP_ON_SPECIFIC_CMD(argc, argv) (((argc) > 0) && ((strcmp((argv)[0], "--help") == 0) || (strcmp((argv)[0], "-h") == 0)))
 
 /**
  * @brief Handle ``add`` command
@@ -80,19 +96,14 @@ static todo_error_t add(int argc, char** argv)
 {
     todo_error_t error = TODO_ERROR_OK;
 
-    if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
-        help_add(false);
-        return TODO_ERROR_OK;
-    }
-
-    if (argc < 3) {
-        help_add(true);
+    if (argc < 1) {
+        add_help(true);
         return TODO_ERROR_ARGUMENT;
     }
 
     error = todo_add(argc, argv);
     if (error == TODO_ERROR_ARGUMENT) {
-        help_add(true);
+        add_help(true);
     }
 
     return error;
@@ -110,14 +121,9 @@ static todo_error_t list(int argc, char** argv)
 {
     todo_error_t error = TODO_ERROR_OK;
 
-    if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
-        help_list(false);
-        return TODO_ERROR_OK;
-    }
-
     error = todo_list(argc, argv);
     if (error == TODO_ERROR_ARGUMENT) {
-        help_list(true);
+        list_help(true);
     }
 
     return error;
@@ -135,25 +141,20 @@ static todo_error_t due(int argc, char** argv)
 {
     todo_error_t error = TODO_ERROR_OK;
 
-    if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
-        help_due(false);
-        return TODO_ERROR_OK;
-    }
-
     if (argc != 2) {
-        help_due(true);
+        due_help(true);
         return TODO_ERROR_ARGUMENT;
     }
 
     int32_t id = atoi(argv[0]);
     if (id <= 0) {
-        help_due(true);
+        due_help(true);
         return TODO_ERROR_ARGUMENT;
     }
 
     error = todo_due((uint32_t)id, argv[1]);
     if (error == TODO_ERROR_ARGUMENT) {
-        help_due(true);
+        due_help(true);
     }
 
     return error;
@@ -171,25 +172,20 @@ static todo_error_t done(int argc, char** argv)
 {
     todo_error_t error = TODO_ERROR_OK;
 
-    if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
-        help_done(false);
-        return TODO_ERROR_OK;
-    }
-
     if (argc != 1) {
-        help_done(true);
+        done_help(true);
         return TODO_ERROR_ARGUMENT;
     }
 
     int32_t id = atoi(argv[0]);
     if (id <= 0) {
-        help_done(true);
+        done_help(true);
         return TODO_ERROR_ARGUMENT;
     }
 
     error = todo_done((uint32_t)id);
     if (error == TODO_ERROR_ARGUMENT) {
-        help_done(true);
+        done_help(true);
     }
 
     return error;
@@ -207,19 +203,16 @@ static todo_error_t review(int argc, char** argv)
 {
     todo_error_t error = TODO_ERROR_OK;
 
-    if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
-        help_review(false);
-        return TODO_ERROR_OK;
-    }
-
     if (argc != 0) {
-        help_review(true);
+        review_help(true);
         return TODO_ERROR_ARGUMENT;
     }
 
+    (void)argv; // unused
+
     error = todo_review();
     if (error == TODO_ERROR_ARGUMENT) {
-        help_review(true);
+        review_help(true);
     }
 
     return error;
@@ -262,7 +255,7 @@ static void help(bool is_error)
  * @param is_error -- true: User did a wrong input, so we print an error message and the help message
  *                 -- false: User did nothing wrong, he just requested to print the help message
  */
-static void help_add(bool is_error)
+static void add_help(bool is_error)
 {
     if (is_error) {
         printf(ERROR_HOW_TO_USE);
@@ -293,7 +286,7 @@ static void help_add(bool is_error)
  * @param is_error -- true: User did a wrong input, so we print an error message and the help message
  *                 -- false: User did nothing wrong, he just requested to print the help message
  */
-static void help_list(bool is_error)
+static void list_help(bool is_error)
 {
     if (is_error) {
         printf(ERROR_HOW_TO_USE);
@@ -324,7 +317,7 @@ static void help_list(bool is_error)
  * @param is_error -- true: User did a wrong input, so we print an error message and the help message
  *                 -- false: User did nothing wrong, he just requested to print the help message
  */
-static void help_due(bool is_error)
+static void due_help(bool is_error)
 {
     if (is_error) {
         printf(ERROR_HOW_TO_USE);
@@ -355,7 +348,7 @@ static void help_due(bool is_error)
  * @param is_error -- true: User did a wrong input, so we print an error message and the help message
  *                 -- false: User did nothing wrong, he just requested to print the help message
  */
-static void help_done(bool is_error)
+static void done_help(bool is_error)
 {
     if (is_error) {
         printf(ERROR_HOW_TO_USE);
@@ -378,7 +371,7 @@ static void help_done(bool is_error)
  * @param is_error -- true: User did a wrong input, so we print an error message and the help message
  *                 -- false: User did nothing wrong, he just requested to print the help message
  */
-static void help_review(bool is_error)
+static void review_help(bool is_error)
 {
     if (is_error) {
         printf(ERROR_HOW_TO_USE);
