@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.4] -- 2026-08-20
+
+### Added
+
+- [cli] added more info to `--help` about the `<DATE>` format
+
+### Changed
+
+- [minor] added explicit casts to make Clang happy
+- [build] treat all compiler warnings as errors
+- [build] use the Release build configuration in the PowerShell build script
+
+### Fixed
+
+- [cli] fixed the version option from `--V` to `-V`
+- [cli] fixed wrong help messages
+- [cli] fixed missing line feed for  `--version`
+
 ## [v0.0.3] -- 2026-08-18
 
 ### Added
