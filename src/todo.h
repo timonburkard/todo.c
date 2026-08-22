@@ -30,29 +30,35 @@ typedef enum {
     TODO_ERROR_SQL      = 3,
 } todo_error_t;
 
+typedef enum {
+    TODO_FILTER_DEFAULT, // List open TODOs
+    TODO_FILTER_OVERDUE, // List overdue TODOs
+    TODO_FILTER_UNTIL,   // List TODOs which are due until specific date
+    TODO_FILTER_SEARCH,  // List TODOs which match match the search pattern
+    TODO_FILTER_ALL,     // List all TODOs
+} todo_filter_t;
+
 /**
  * @brief Add a new TODO
  *
- * For full description see `cli:help_add()`
- *
- * @param argc -- Number of arguments from the user AFTER the `todo add` command
- * @param argv -- Arguments from the user AFTER the `todo add` command
+ * @param text     -- Description of the TODO
+ * @param due_date -- Optional due date of the TODO, may be NULL
 
  * @return todo_error_t -- Error code
  */
-todo_error_t todo_add(int argc, char** argv);
+todo_error_t todo_add(char* text, char* due_date);
 
 /**
  * @brief List TODOs
  *
- * For full description see `cli:help_list()`
+ * @param filter   -- Filter for the TODOs that should be listed
+ * @param argument -- Argument for UNTIL and SEARCH filter, NULL for other filters
+ *                     - UNTIL: "YYYY-MM-DD hh:mm:ss", "YYYY-MM-DD", "today", "tomorrow", "week", "month" or "year"
+ *                     - SEARCH: Search text
  *
- * @param argc -- Number of arguments from the user AFTER the `todo list` command
- * @param argv -- Arguments from the user AFTER the `todo list` command
-
  * @return todo_error_t -- Error code
  */
-todo_error_t todo_list(int argc, char** argv);
+todo_error_t todo_list(todo_filter_t filter, const char* argument);
 
 /**
  * @brief Set or change the due date of a TODO

@@ -84,19 +84,19 @@ run_test "set due date for todo" 0 "$TODO_BIN" due 1 "2026-08-25 15:30:00"
 run_test "mark todo as done" 0 "$TODO_BIN" done 1
 
 # Test 8: Invalid date format should fail
-run_test "reject invalid date format" 2 "$TODO_BIN" add "Test" --due "2026/08/20"
+run_test "reject invalid date format" 1 "$TODO_BIN" add "Test" --due "2026/08/20"
 
 # Test 9: Invalid command should fail
-run_test "reject invalid command" 2 "$TODO_BIN" invalid
+run_test "reject invalid command" 1 "$TODO_BIN" invalid
 
 # Test 10: Add without text should fail
-run_test "reject add without text" 2 "$TODO_BIN" add
+run_test "reject add without text" 1 "$TODO_BIN" add
 
 # Test 11: Due without ID should fail
-run_test "reject due without id" 2 "$TODO_BIN" due
+run_test "reject due without id" 1 "$TODO_BIN" due
 
 # Test 12: Done without ID should fail
-run_test "reject done without id" 2 "$TODO_BIN" done
+run_test "reject done without id" 1 "$TODO_BIN" done
 
 # Test 13: Add todo with future date
 run_test "add todo with future date" 0 "$TODO_BIN" add "Future task" --due "2027-12-31 23:59:59"

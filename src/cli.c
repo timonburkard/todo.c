@@ -1,27 +1,41 @@
-#include <stdbool.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
+#include "clic.h"
 #include "todo.h"
 #include "version.h"
 
-#define HELP_ON_SPECIFIC_CMD(argc, argv) (((argc) > 2) && ((strcmp((argv)[2], "--help") == 0) || (strcmp((argv)[2], "-h") == 0)))
+typedef enum {
+    CMD_ID_ADD = 0,
+    CMD_ID_LIST,
+    CMD_ID_DUE,
+    CMD_ID_DONE,
+    CMD_ID_REVIEW,
+} cmd_id_t;
 
-static void help(bool is_error);
-static void version(void);
+typedef enum {
+    ADD_ARG_ID_TEXT = 0,
+    ADD_ARG_ID_DUE,
+    LIST_ARG_ID_OVERDUE = 0,
+    LIST_ARG_ID_ALL,
+    LIST_ARG_ID_UNTIL,
+    LIST_ARG_ID_SEARCH,
+    DUE_ARG_ID_ID = 0,
+    DUE_ARG_ID_DATE,
+    DONE_ARG_ID_ID = 0
+} arg_id_t;
 
-static void add_help(bool is_error);
-static void list_help(bool is_error);
-static void due_help(bool is_error);
-static void done_help(bool is_error);
-static void review_help(bool is_error);
+static clic_err_t add(clic_res_t* clic_res);
+static clic_err_t list(clic_res_t* clic_res);
+static clic_err_t due(clic_res_t* clic_res);
+static clic_err_t done(clic_res_t* clic_res);
+static clic_err_t review(clic_res_t* clic_res);
 
-static todo_error_t add(int argc, char** argv);
-static todo_error_t list(int argc, char** argv);
-static todo_error_t due(int argc, char** argv);
-static todo_error_t done(int argc, char** argv);
-static todo_error_t review(int argc, char** argv);
+static uint32_t   str_to_id(const char* str);
+static clic_err_t todo_to_clic_err(todo_error_t todo_error);
 
 typedef struct {
     const char* name;
@@ -29,358 +43,301 @@ typedef struct {
     void (*helper)(bool);
 } cmd_t;
 
-static const cmd_t commands[] = {
-    {.name = "add",    .function = add,    .helper = add_help   },
-    {.name = "list",   .function = list,   .helper = list_help  },
-    {.name = "due",    .function = due,    .helper = due_help   },
-    {.name = "done",   .function = done,   .helper = done_help  },
-    {.name = "review", .function = review, .helper = review_help},
+static const clic_cmd_t cmdv[] = {
+    [CMD_ID_ADD] = {
+        .names       = (const char*[]){"add", NULL},
+        .description = "Add a new TODO",
+        .function    = add,
+        .argc        = 2,
+        .argv        = (const clic_arg_t[]){
+            [ADD_ARG_ID_TEXT] = {
+                       .type        = CLIC_ARG_POSITIONAL,
+                       .required    = true,
+                       .value_name  = "TEXT",
+                       .description = "Description of the new TODO",
+            },
+            [ADD_ARG_ID_DUE] = {
+                       .type        = CLIC_ARG_WITH_VALUE,
+                       .required    = false,
+                       .names       = (const char*[]){"--due", NULL},
+                       .value_name  = "DATE",
+                       .description = "Due date. One of: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD, today, tomorrow, week, month, year",
+            },
+        },
+    },
+    [CMD_ID_LIST] = {
+        .names       = (const char*[]){"list", NULL},
+        .description = "List TODOs",
+        .function    = list,
+        .argc        = 4,
+        .argv        = (const clic_arg_t[]){
+            [LIST_ARG_ID_OVERDUE] = {
+                       .type        = CLIC_ARG_FLAG,
+                       .required    = false,
+                       .names       = (const char*[]){"--overdue", NULL},
+                       .description = "List overdue TODOs",
+            },
+            [LIST_ARG_ID_ALL] = {
+                       .type        = CLIC_ARG_FLAG,
+                       .required    = false,
+                       .names       = (const char*[]){"--all", "-a", NULL},
+                       .description = " List all TODOs, including the completed ones",
+            },
+            [LIST_ARG_ID_UNTIL] = {
+                       .type        = CLIC_ARG_WITH_VALUE,
+                       .required    = false,
+                       .names       = (const char*[]){"--until", NULL},
+                       .value_name  = "DATE",
+                       .description = "List TODOs which are due until DATE. One of: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD, today, tomorrow, week, month, year",
+            },
+            [LIST_ARG_ID_SEARCH] = {
+                       .type        = CLIC_ARG_WITH_VALUE,
+                       .required    = false,
+                       .names       = (const char*[]){"--search", NULL},
+                       .value_name  = "TEXT",
+                       .description = "List TODOs which contain TEXT",
+            },
+        },
+    },
+    [CMD_ID_DUE] = {
+        .names       = (const char*[]){"due", NULL},
+        .description = "Set or change a TODO's due date",
+        .function    = due,
+        .argc        = 2,
+        .argv        = (const clic_arg_t[]){
+            [DUE_ARG_ID_ID] = {
+                       .type        = CLIC_ARG_POSITIONAL,
+                       .required    = true,
+                       .value_name  = "ID",
+                       .description = "ID of the TODO",
+            },
+            [DUE_ARG_ID_DATE] = {
+                       .type        = CLIC_ARG_POSITIONAL,
+                       .required    = true,
+                       .value_name  = "DATE",
+                       .description = "Due date. One of: YYYY-MM-DD hh:mm:ss, YYYY-MM-DD, today, tomorrow, week, month, year",
+            },
+        },
+    },
+    [CMD_ID_DONE] = {
+        .names       = (const char*[]){"done", NULL},
+        .description = "Mark a TODO as done",
+        .function    = done,
+        .argc        = 1,
+        .argv        = (const clic_arg_t[]){
+            [DONE_ARG_ID_ID] = {
+                       .type        = CLIC_ARG_POSITIONAL,
+                       .required    = true,
+                       .description = "ID of the TODO",
+            },
+        },
+    },
+    [CMD_ID_REVIEW] = {
+        .names       = (const char*[]){"review", NULL},
+        .description = "Interactively review open",
+        .function    = review,
+        .argc        = 0,
+    },
 };
 
 int main(int argc, char** argv)
 {
-    if (argc < 2) {
-        help(true);
-        return TODO_ERROR_ARGUMENT;
+    clic_err_t clic_err;
+
+    uint8_t cmdc = sizeof(cmdv) / sizeof(cmdv[0]);
+
+    clic_err = clic_parse(cmdc, cmdv, argc, (const char* const*)argv);
+
+    switch (clic_err) {
+        case CLIC_ERR_OK:
+            // Nothing to do
+            break;
+
+        case CLIC_ERR_CONFIG:
+            printf("ERROR: Wrong CLIC configuration!\n");
+            break;
+        case CLIC_ERR_NULL:
+            printf("ERROR: NULL pointer provided to CLIC!\n");
+            break;
+        case CLIC_ERR_GENERAL:
+            printf("ERROR: General CLIC error code!\n");
+            break;
+
+        case CLIC_ERR_ARG:
+            // Nothing to print because CLIC already prints error for wrong arguments
+            break;
+
+        default:
+            UNREACHABLE();
     }
 
-    if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "-V") == 0)) {
-        version();
-        return TODO_ERROR_OK;
-    }
-
-    if ((strcmp(argv[1], "--help") == 0) || (strcmp(argv[1], "-h") == 0) || (strcmp(argv[1], "help") == 0)) {
-        help(false);
-        return TODO_ERROR_OK;
-    }
-
-    for (uint8_t i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
-        if (strcmp(argv[1], commands[i].name) != 0) {
-            continue;
-        }
-
-        if (HELP_ON_SPECIFIC_CMD(argc, argv)) {
-            if (commands[i].helper != NULL) {
-                commands[i].helper(false);
-                return TODO_ERROR_OK;
-            }
-
-            UNREACHABLE_A("Each command must have a helper function!");
-        }
-
-        if (commands[i].function != NULL) {
-            return commands[i].function(argc - 2, &argv[2]);
-        }
-
-        UNREACHABLE_A("Each command must have a function!");
-    }
-
-    help(true);
-    return TODO_ERROR_ARGUMENT;
-}
-
-static void version(void)
-{
-    printf("v" TODO_VERSION "\n");
+    return (int)clic_err;
 }
 
 /**
  * @brief Handle `add` command
  *
- * @param argc -- Number of arguments from the user AFTER the `todo add` command
- * @param argv -- Arguments from the user AFTER the `todo add` command
+ * @param clic_res -- Parses CLIC result
  *
- * @return todo_error_t -- error code
+ * @return clic_err_t -- CLIC error code
  */
-static todo_error_t add(int argc, char** argv)
+static clic_err_t add(clic_res_t* clic_res)
 {
-    todo_error_t error = TODO_ERROR_OK;
+    todo_error_t error = todo_add(clic_res->argv[ADD_ARG_ID_TEXT], clic_res->argv[ADD_ARG_ID_DUE]);
 
-    if (argc < 1) {
-        add_help(true);
-        return TODO_ERROR_ARGUMENT;
-    }
-
-    error = todo_add(argc, argv);
-    if (error == TODO_ERROR_ARGUMENT) {
-        add_help(true);
-    }
-
-    return error;
+    return todo_to_clic_err(error);
 }
 
 /**
  * @brief Handle `list` command
  *
- * @param argc -- Number of arguments from the user AFTER the `todo list` command
- * @param argv -- Arguments from the user AFTER the `todo list` command
+ * @param clic_res -- Parses CLIC result
  *
- * @return todo_error_t -- error code
+ * @return clic_err_t -- CLIC error code
  */
-static todo_error_t list(int argc, char** argv)
+static clic_err_t list(clic_res_t* clic_res)
 {
-    todo_error_t error = TODO_ERROR_OK;
+    todo_error_t  error    = TODO_ERROR_OK;
+    todo_filter_t filter   = TODO_FILTER_DEFAULT;
+    char*         argument = NULL;
 
-    error = todo_list(argc, argv);
-    if (error == TODO_ERROR_ARGUMENT) {
-        list_help(true);
+    if (clic_res->argv[LIST_ARG_ID_OVERDUE] != NULL) {
+        filter = TODO_FILTER_OVERDUE;
+    } else if (clic_res->argv[LIST_ARG_ID_ALL] != NULL) {
+        filter = TODO_FILTER_ALL;
+    } else if (clic_res->argv[LIST_ARG_ID_UNTIL] != NULL) {
+        filter   = TODO_FILTER_UNTIL;
+        argument = clic_res->argv[LIST_ARG_ID_UNTIL];
+    } else if (clic_res->argv[LIST_ARG_ID_SEARCH] != NULL) {
+        filter   = TODO_FILTER_SEARCH;
+        argument = clic_res->argv[LIST_ARG_ID_SEARCH];
     }
 
-    return error;
+    error = todo_list(filter, argument);
+
+    return todo_to_clic_err(error);
 }
 
 /**
  * @brief Handle `due` command
  *
- * @param argc -- Number of arguments from the user AFTER the `todo due` command
- * @param argv -- Arguments from the user AFTER the `todo due` command
+ * @param clic_res -- Parses CLIC result
  *
- * @return todo_error_t -- error code
+ * @return clic_err_t -- CLIC error code
  */
-static todo_error_t due(int argc, char** argv)
+static clic_err_t due(clic_res_t* clic_res)
 {
-    todo_error_t error = TODO_ERROR_OK;
+    uint32_t     id;
+    todo_error_t error;
 
-    if (argc != 2) {
-        due_help(true);
-        return TODO_ERROR_ARGUMENT;
+    id = str_to_id(clic_res->argv[DUE_ARG_ID_ID]);
+
+    if (id == 0) {
+        return CLIC_ERR_ARG;
     }
 
-    int32_t id = atoi(argv[0]);
-    if (id <= 0) {
-        due_help(true);
-        return TODO_ERROR_ARGUMENT;
-    }
+    error = todo_due(id, clic_res->argv[DUE_ARG_ID_DATE]);
 
-    error = todo_due((uint32_t)id, argv[1]);
-    if (error == TODO_ERROR_ARGUMENT) {
-        due_help(true);
-    }
-
-    return error;
+    return todo_to_clic_err(error);
 }
 
 /**
  * @brief Handle `done` command
  *
- * @param argc -- Number of arguments from the user AFTER the `todo done` command
- * @param argv -- Arguments from the user AFTER the `todo done` command
+ * @param clic_res -- Parses CLIC result
  *
- * @return todo_error_t -- error code
+ * @return clic_err_t -- CLIC error code
  */
-static todo_error_t done(int argc, char** argv)
+static clic_err_t done(clic_res_t* clic_res)
 {
-    todo_error_t error = TODO_ERROR_OK;
+    uint32_t     id;
+    todo_error_t error;
 
-    if (argc != 1) {
-        done_help(true);
-        return TODO_ERROR_ARGUMENT;
+    id = str_to_id(clic_res->argv[DONE_ARG_ID_ID]);
+
+    if (id == 0) {
+        return CLIC_ERR_ARG;
     }
 
-    int32_t id = atoi(argv[0]);
-    if (id <= 0) {
-        done_help(true);
-        return TODO_ERROR_ARGUMENT;
-    }
+    error = todo_done(id);
 
-    error = todo_done((uint32_t)id);
-    if (error == TODO_ERROR_ARGUMENT) {
-        done_help(true);
-    }
-
-    return error;
+    return todo_to_clic_err(error);
 }
 
 /**
  * @brief Handle `review` command
  *
- * @param argc -- Number of arguments from the user AFTER the `todo review` command
- * @param argv -- Arguments from the user AFTER the `todo review` command
+ * @param clic_res -- Parses CLIC result
  *
- * @return todo_error_t -- error code
+ * @return clic_err_t -- CLIC error code
  */
-static todo_error_t review(int argc, char** argv)
+static clic_err_t review(clic_res_t* clic_res)
 {
-    todo_error_t error = TODO_ERROR_OK;
+    todo_error_t error;
 
-    if (argc != 0) {
-        review_help(true);
-        return TODO_ERROR_ARGUMENT;
-    }
-
-    (void)argv; // unused
+    (void)clic_res; // no arguments
 
     error = todo_review();
-    if (error == TODO_ERROR_ARGUMENT) {
-        review_help(true);
-    }
 
-    return error;
+    return todo_to_clic_err(error);
 }
 
-#define ERROR_HOW_TO_USE "ERROR, this is how to use:\n\n"
-
-/**
- * @brief Print general help message
- *
- * @param is_error -- true: User did a wrong input, so we print an error message and the help message
- *                 -- false: User did nothing wrong, he just requested to print the help message
- */
-static void help(bool is_error)
+static clic_err_t todo_to_clic_err(todo_error_t todo_error)
 {
-    if (is_error) {
-        printf(ERROR_HOW_TO_USE);
-    }
+    switch (todo_error) {
+        case TODO_ERROR_OK:
+            return CLIC_ERR_OK;
 
-    printf("A small C command-line TODO app backed by SQLite\n"
-           "\n"
-           "\x1b[4mUsage:\x1b[24m todo <COMMAND>\n"
-           "\n"
-           "\x1b[4mCommands:\x1b[24m\n"
-           "  add     Add a new TODO\n"
-           "  list    List TODOs\n"
-           "  due     Set or change a TODO's due date\n"
-           "  done    Mark a TODO as done\n"
-           "  review  Interactively review open TODOs\n"
-           "  help    Print this message or the help of the given subcommand(s)\n"
-           "\n"
-           "\x1b[4mOptions:\x1b[24m\n"
-           "  -h, --help     Print help\n"
-           "  -V, --version  Print version\n");
+        case TODO_ERROR_ARGUMENT:
+            return CLIC_ERR_ARG;
+
+        default:
+            return CLIC_ERR_GENERAL;
+    }
 }
 
 /**
- * @brief Print help message for `add` command
+ * @brief Convert string to ID
  *
- * @param is_error -- true: User did a wrong input, so we print an error message and the help message
- *                 -- false: User did nothing wrong, he just requested to print the help message
+ * Valid ID is uint32_t and none 0.
+ * In case of invalid string, 0 is returned.
+ *
+ * @param[in] str -- String to be converted
+ *
+ * @return uint32_t -- Converted ID
  */
-static void add_help(bool is_error)
+static uint32_t str_to_id(const char* str)
 {
-    if (is_error) {
-        printf(ERROR_HOW_TO_USE);
+    char*         end;
+    unsigned long result;
+
+    if (str == NULL) {
+        return 0;
     }
 
-    printf("Add a new TODO\n"
-           "\n"
-           "\x1b[4mUsage:\x1b[24m todo add <TEXT> [OPTIONS]\n"
-           "\n"
-           "\x1b[4mArguments:\x1b[24m\n"
-           "  <TEXT>  TODO text\n"
-           "\n"
-           "\x1b[4mOptions:\x1b[24m\n"
-           "      --due <DATE>  Due date. One of:\n"
-           "                      YYYY-MM-DD hh:mm:ss\n"
-           "                      YYYY-MM-DD\n"
-           "                      today\n"
-           "                      tomorrow\n"
-           "                      week\n"
-           "                      month\n"
-           "                      year\n"
-           "  -h, --help        Print help\n");
-}
-
-/**
- * @brief Print help message for `list` command
- *
- * @param is_error -- true: User did a wrong input, so we print an error message and the help message
- *                 -- false: User did nothing wrong, he just requested to print the help message
- */
-static void list_help(bool is_error)
-{
-    if (is_error) {
-        printf(ERROR_HOW_TO_USE);
+    if ((*str == '-') || (*str == '+')) {
+        return 0; // We don't accept sign
     }
 
-    printf("List TODOs\n"
-           "\n"
-           "\x1b[4mUsage:\x1b[24m todo list [OPTIONS]\n"
-           "\n"
-           "\x1b[4mOptions:\x1b[24m\n"
-           "      --overdue          List overdue TODOs\n"
-           "      --all              List all TODOs, including completed\n"
-           "      --until <DATE>     List TODOs due until DATE. One of:\n"
-           "                           YYYY-MM-DD hh:mm:ss\n"
-           "                           YYYY-MM-DD\n"
-           "                           today\n"
-           "                           tomorrow\n"
-           "                           week\n"
-           "                           month\n"
-           "                           year\n"
-           "      --search <TEXT>    List TODOs matching TEXT\n"
-           "  -h, --help             Print help\n");
-}
+    errno = 0;
 
-/**
- * @brief Print help message for `due` command
- *
- * @param is_error -- true: User did a wrong input, so we print an error message and the help message
- *                 -- false: User did nothing wrong, he just requested to print the help message
- */
-static void due_help(bool is_error)
-{
-    if (is_error) {
-        printf(ERROR_HOW_TO_USE);
+    result = strtoul(str, &end, 10);
+
+    if (errno == ERANGE) {
+        return 0;
     }
 
-    printf("Set or change a TODO's due date\n"
-           "\n"
-           "\x1b[4mUsage:\x1b[24m todo due <ID> <DATE>\n"
-           "\n"
-           "\x1b[4mArguments:\x1b[24m\n"
-           "  <ID>    TODO ID\n"
-           "  <DATE>  Due date. One of:\n"
-           "            YYYY-MM-DD hh:mm:ss\n"
-           "            YYYY-MM-DD\n"
-           "            today\n"
-           "            tomorrow\n"
-           "            week\n"
-           "            month\n"
-           "            year\n"
-           "\n"
-           "\x1b[4mOptions:\x1b[24m\n"
-           "  -h, --help  Print help\n");
-}
-
-/**
- * @brief Print help message for `done` command
- *
- * @param is_error -- true: User did a wrong input, so we print an error message and the help message
- *                 -- false: User did nothing wrong, he just requested to print the help message
- */
-static void done_help(bool is_error)
-{
-    if (is_error) {
-        printf(ERROR_HOW_TO_USE);
+    if (end == str) {
+        return 0;
     }
 
-    printf("Mark a TODO as done\n"
-           "\n"
-           "\x1b[4mUsage:\x1b[24m todo done <ID>\n"
-           "\n"
-           "\x1b[4mArguments:\x1b[24m\n"
-           "  <ID>  TODO ID\n"
-           "\n"
-           "\x1b[4mOptions:\x1b[24m\n"
-           "  -h, --help  Print help\n");
-}
-
-/**
- * @brief Print help message for `review` command
- *
- * @param is_error -- true: User did a wrong input, so we print an error message and the help message
- *                 -- false: User did nothing wrong, he just requested to print the help message
- */
-static void review_help(bool is_error)
-{
-    if (is_error) {
-        printf(ERROR_HOW_TO_USE);
+    if (*end != '\0') {
+        return 0;
     }
 
-    printf("Interactively review open TODOs\n"
-           "\n"
-           "\x1b[4mUsage:\x1b[24m todo review\n"
-           "\n"
-           "\x1b[4mOptions:\x1b[24m\n"
-           "  -h, --help  Print help\n");
+    if ((result == 0) || (result > UINT32_MAX)) {
+        return 0;
+    }
+
+    return (uint32_t)result;
 }
