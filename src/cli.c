@@ -9,14 +9,6 @@
 #include "version.h"
 
 typedef enum {
-    CMD_ID_ADD = 0,
-    CMD_ID_LIST,
-    CMD_ID_DUE,
-    CMD_ID_DONE,
-    CMD_ID_REVIEW,
-} cmd_id_t;
-
-typedef enum {
     ADD_ARG_ID_TEXT = 0,
     ADD_ARG_ID_DUE,
     LIST_ARG_ID_OVERDUE = 0,
@@ -44,7 +36,7 @@ typedef struct {
 } cmd_t;
 
 static const clic_cmd_t cmdv[] = {
-    [CMD_ID_ADD] = {
+    {
         .names       = (const char*[]){"add", NULL},
         .description = "Add a new TODO",
         .function    = add,
@@ -65,7 +57,7 @@ static const clic_cmd_t cmdv[] = {
             },
         },
     },
-    [CMD_ID_LIST] = {
+    {
         .names       = (const char*[]){"list", NULL},
         .description = "List TODOs",
         .function    = list,
@@ -99,7 +91,7 @@ static const clic_cmd_t cmdv[] = {
             },
         },
     },
-    [CMD_ID_DUE] = {
+    {
         .names       = (const char*[]){"due", NULL},
         .description = "Set or change a TODO's due date",
         .function    = due,
@@ -119,7 +111,7 @@ static const clic_cmd_t cmdv[] = {
             },
         },
     },
-    [CMD_ID_DONE] = {
+    {
         .names       = (const char*[]){"done", NULL},
         .description = "Mark a TODO as done",
         .function    = done,
@@ -132,7 +124,7 @@ static const clic_cmd_t cmdv[] = {
             },
         },
     },
-    [CMD_ID_REVIEW] = {
+    {
         .names       = (const char*[]){"review", NULL},
         .description = "Interactively review open",
         .function    = review,
