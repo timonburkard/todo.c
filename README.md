@@ -68,6 +68,10 @@ todo review
  - In a year:    "year"
 ```
 
+### Argument parsing
+
+For argument parsing the [CLIC](https://github.com/timonburkard/clic) library is used.
+
 ### Example: Review
 
 ```bash

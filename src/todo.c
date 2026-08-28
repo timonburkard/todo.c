@@ -47,35 +47,20 @@ static volatile uint32_t callback_ids[CALLBACK_IDS_MAX] = {0};
 static char  read_char(void);
 static char* read_string(char* string, int size);
 static void  print_todo(char* id, char* text, char* created_at, char* due_at, char* done_at);
-static bool  convert_to_iso(char* str, char** iso_str_ptr, round_t rounding);
+static bool  convert_to_iso(const char* str, char** iso_str_ptr, round_t rounding);
 static int   callback_print(void* NotUsed, int argc, char** argv, char** azColName);
 static int   callback_get_id(void* NotUsed, int argc, char** argv, char** azColName);
 
-todo_error_t todo_add(int argc, char** argv)
+todo_error_t todo_add(char* text, char* due_date)
 {
     int   res              = 0;
     bool  do_create_db     = false;
     char* zErrMsg          = NULL;
-    char* due_date         = "";
-    char* text             = "";
+    char* due_date_iso     = "";
     char  str[STR_LEN_MAX] = "";
 
-    if (argc < 1) {
-        UNREACHABLE();
-    }
-
-    text = argv[0];
-
-    if (argc > 1) {
-        if (strcmp(argv[1], "--due") == 0) {
-            if (argc > 2) {
-                if (!convert_to_iso(argv[2], &due_date, ROUND_DOWN)) {
-                    return TODO_ERROR_ARGUMENT;
-                }
-            } else {
-                return TODO_ERROR_ARGUMENT;
-            }
-        } else {
+    if (due_date != NULL) {
+        if (!convert_to_iso(due_date, &due_date_iso, ROUND_DOWN)) {
             return TODO_ERROR_ARGUMENT;
         }
     }
@@ -120,10 +105,10 @@ todo_error_t todo_add(int argc, char** argv)
         return TODO_ERROR_SQL;
     }
 
-    if (due_date[0] == '\0') {
+    if (due_date == NULL) {
         res = snprintf(str, STR_LEN_MAX, DB_INSERT_INTO, text);
     } else {
-        res = snprintf(str, STR_LEN_MAX, DB_INSERT_INTO_WITH_DUE, text, due_date);
+        res = snprintf(str, STR_LEN_MAX, DB_INSERT_INTO_WITH_DUE, text, due_date_iso);
     }
 
     if ((res < 0) || (res >= STR_LEN_MAX)) {
@@ -146,41 +131,37 @@ todo_error_t todo_add(int argc, char** argv)
     return TODO_ERROR_OK;
 }
 
-typedef enum {
-    LIST_FLAG_DEFAULT,
-    LIST_FLAG_OVERDUE,
-    LIST_FLAG_UNTIL,
-    LIST_FLAG_ALL,
-    LIST_FLAG_SEARCH,
-} list_flag_t;
-
-todo_error_t todo_list(int argc, char** argv)
+todo_error_t todo_list(todo_filter_t filter, const char* argument)
 {
-    char        sql_str[STR_LEN_MAX] = "";
-    list_flag_t flag                 = LIST_FLAG_DEFAULT;
-    int         res                  = 0;
-    char*       zErrMsg              = NULL;
-    char*       until_str            = "";
-    char*       search_str           = "";
+    char  sql_str[STR_LEN_MAX] = "";
+    int   res                  = 0;
+    char* zErrMsg              = NULL;
+    char* until_str            = "";
 
-    if (argc == 1) {
-        if (strcmp(argv[0], "--overdue") == 0) {
-            flag = LIST_FLAG_OVERDUE;
-        } else if (strcmp(argv[0], "--all") == 0) {
-            flag = LIST_FLAG_ALL;
-        } else {
-            return TODO_ERROR_ARGUMENT;
-        }
-    } else if (argc == 2) {
-        if (strcmp(argv[0], "--until") == 0) {
-            flag = LIST_FLAG_UNTIL;
-            if (!convert_to_iso(argv[1], &until_str, ROUND_UP)) {
+    switch (filter) {
+        case TODO_FILTER_DEFAULT:
+        case TODO_FILTER_OVERDUE:
+        case TODO_FILTER_ALL:
+            if (argument != NULL) {
+                // These filters do not take an argument
                 return TODO_ERROR_ARGUMENT;
             }
-        } else if (strcmp(argv[0], "--search") == 0) {
-            flag       = LIST_FLAG_SEARCH;
-            search_str = argv[1];
-        } else {
+            break;
+
+        case TODO_FILTER_UNTIL:
+        case TODO_FILTER_SEARCH:
+            if (argument == NULL) {
+                // These filters do take an argument
+                return TODO_ERROR_ARGUMENT;
+            }
+            break;
+
+        default:
+            return TODO_ERROR_ARGUMENT;
+    }
+
+    if (filter == TODO_FILTER_UNTIL) {
+        if (!convert_to_iso(argument, &until_str, ROUND_UP)) {
             return TODO_ERROR_ARGUMENT;
         }
     }
@@ -191,8 +172,8 @@ todo_error_t todo_list(int argc, char** argv)
         return TODO_ERROR_SQL;
     }
 
-    switch (flag) {
-        case LIST_FLAG_DEFAULT:
+    switch (filter) {
+        case TODO_FILTER_DEFAULT:
             if (sqlite3_exec(db, DB_SELECT_DEFAULT, callback_print, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
@@ -201,7 +182,7 @@ todo_error_t todo_list(int argc, char** argv)
             }
             break;
 
-        case LIST_FLAG_OVERDUE:
+        case TODO_FILTER_OVERDUE:
             if (sqlite3_exec(db, DB_SELECT_OVERDUE, callback_print, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
@@ -210,7 +191,7 @@ todo_error_t todo_list(int argc, char** argv)
             }
             break;
 
-        case LIST_FLAG_UNTIL:
+        case TODO_FILTER_UNTIL:
             res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_UNTIL, until_str);
 
             if ((res < 0) || (res >= STR_LEN_MAX)) {
@@ -227,7 +208,7 @@ todo_error_t todo_list(int argc, char** argv)
             }
             break;
 
-        case LIST_FLAG_ALL:
+        case TODO_FILTER_ALL:
             if (sqlite3_exec(db, DB_SELECT_ALL, callback_print, 0, &zErrMsg) != SQLITE_OK) {
                 fprintf(stderr, "SQL error: %s\n", zErrMsg);
                 sqlite3_free(zErrMsg);
@@ -236,8 +217,8 @@ todo_error_t todo_list(int argc, char** argv)
             }
             break;
 
-        case LIST_FLAG_SEARCH:
-            res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_SEARCH, search_str);
+        case TODO_FILTER_SEARCH:
+            res = snprintf(sql_str, STR_LEN_MAX, DB_SELECT_SEARCH, argument);
 
             if ((res < 0) || (res >= STR_LEN_MAX)) {
                 fprintf(stderr, "String for SQL query could not be constructed, maybe string is too long; max. %d characters\n", STR_LEN_MAX);
@@ -587,13 +568,14 @@ static int callback_get_id(void* NotUsed, int argc, char** argv, char** azColNam
  *  - In a month:   "month"
  *  - In a year:    "year"
  *
- * @param str         -- input string
- * @param iso_str_ptr -- pointer to output string
- * @param rounding    -- Round up or down for keywords
- * @return true       -- input string is valid
- * @return false      -- input string is invalid
+ * @param[in]  str         -- input string
+ * @param[out] iso_str_ptr -- pointer to output string
+ * @param[in]  rounding    -- Round up or down for keywords
+ *
+ * @return true  -- input string is valid
+ * @return false -- input string is invalid
  */
-static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding)
+static bool convert_to_iso(const char* str, char** iso_str_ptr, round_t rounding)
 {
     static char static_iso_str[DATETIME_STR_SIZE] = "";
     time_t      t                                 = time(NULL);
@@ -648,7 +630,7 @@ static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding)
     if (str[5] == '1') {
         if (!WITHIN('0', str[6], '2')) return false;
     } else {
-        if (!WITHIN('0', str[6], '9')) return false;
+        if (!WITHIN('1', str[6], '9')) return false;
     }
     if (str[7] != '-') return false;
 
@@ -656,6 +638,8 @@ static bool convert_to_iso(char* str, char** iso_str_ptr, round_t rounding)
     if (!WITHIN('0', str[8], '3')) return false;
     if (str[8] == '3') {
         if (!WITHIN('0', str[9], '1')) return false;
+    } else if (str[8] == '0') {
+        if (!WITHIN('1', str[9], '9')) return false;
     } else {
         if (!WITHIN('0', str[9], '9')) return false;
     }
